@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../core/design.dart';
 import 'navigation/app_router.dart';
 import 'state/app_refresh.dart';
@@ -45,7 +44,6 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
       final inactiveTime = DateTime.now().difference(pausedAt);
 
-      // Если приложение долго было в фоне, мягко обновляем данные.
       if (inactiveTime.inMinutes >= 10) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;

@@ -95,7 +95,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     return ref.read(startupCoordinatorProvider).resolveInitialRoute();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -120,7 +119,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 AnimatedBuilder(
-                  animation: Listenable.merge([_floatController, _appearController]),
+                  animation:
+                      Listenable.merge([_floatController, _appearController]),
                   builder: (context, child) {
                     return Transform.translate(
                       offset: Offset(0, _logoOffset.value),
@@ -154,7 +154,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'дневник питания и прогресса тела',
+                          'Контролируйте пищевой баланс и физическую форму',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colors.onSurfaceVariant,
                             fontWeight: FontWeight.w600,

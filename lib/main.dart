@@ -1,15 +1,12 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'presentation/app.dart';
 import 'core/app_config.dart';
 import 'core/app_logger.dart';
 import 'data/local/app_database.dart';
 import 'data/services/startup_import_service.dart';
-
 import 'domain/repositories/auth_repository.dart' as auth_domain;
 import 'domain/repositories/diary_repository.dart' as diary_domain;
 import 'domain/repositories/measurements_repository.dart' as measurements_domain;
@@ -17,7 +14,6 @@ import 'domain/repositories/photos_repository.dart' as photos_domain;
 import 'domain/repositories/products_repository.dart' as products_domain;
 import 'domain/repositories/profile_repository.dart' as profile_domain;
 import 'domain/repositories/recipes_repository.dart' as recipes_domain;
-
 import 'data/repositories/auth_repository.dart' as auth_data;
 import 'data/repositories/diary_repository.dart' as diary_data;
 import 'data/repositories/measurements_repository.dart' as measurements_data;

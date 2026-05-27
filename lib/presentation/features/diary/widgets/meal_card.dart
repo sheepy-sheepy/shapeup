@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/extensions.dart';
 import '../../../../core/app_ui.dart';
 import '../../../../core/design.dart';
+import '../../../../core/number_utils.dart';
 import '../../../../domain/repositories/diary_repository.dart';
+import '../../../widgets/grams_input_content.dart';
 import '../meal_item_picker_screen.dart';
 
 class MealCard extends ConsumerStatefulWidget {
@@ -17,8 +19,6 @@ class MealCard extends ConsumerStatefulWidget {
 
   final Meal meal;
   final String dayKey;
-
-  /// Обновляет только карточку "Норма на день".
   final ValueNotifier<int> totalsRefreshTick;
 
   @override
@@ -29,17 +29,6 @@ class _MealCardState extends ConsumerState<MealCard> {
   bool initialLoading = true;
   String? errorText;
   List<MealItem> items = [];
-
-  double _roundTo(double value, int decimals) {
-    var factor = 1.0;
-    for (var i = 0; i < decimals; i++) {
-      factor *= 10.0;
-    }
-    return (value * factor).roundToDouble() / factor;
-  }
-
-  double _gramsValue(double value) => _roundTo(value, 1);
-  double _kbjuValue(double value) => _roundTo(value, 2);
 
   @override
   void initState() {
@@ -142,7 +131,10 @@ class _MealCardState extends ConsumerState<MealCard> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Text(picked.name),
-              content: _gramsDialogContent(gramsController, setDialogState),
+              content: GramsInputContent(
+                controller: gramsController,
+                setDialogState: setDialogState,
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -166,7 +158,7 @@ class _MealCardState extends ConsumerState<MealCard> {
 
     final parsedGrams =
         double.tryParse(gramsController.text.replaceAll(',', '.'));
-    final grams = parsedGrams == null ? null : _gramsValue(parsedGrams);
+    final grams = parsedGrams == null ? null : roundGrams(parsedGrams);
 
     if (grams == null || grams <= 0) {
       if (mounted) {
@@ -212,7 +204,10 @@ class _MealCardState extends ConsumerState<MealCard> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Изменить граммы'),
-              content: _gramsDialogContent(controller, setDialogState),
+              content: GramsInputContent(
+                controller: controller,
+                setDialogState: setDialogState,
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -235,7 +230,7 @@ class _MealCardState extends ConsumerState<MealCard> {
     FocusManager.instance.primaryFocus?.unfocus();
 
     final parsedGrams = double.tryParse(controller.text.replaceAll(',', '.'));
-    final grams = parsedGrams == null ? null : _gramsValue(parsedGrams);
+    final grams = parsedGrams == null ? null : roundGrams(parsedGrams);
 
     if (grams == null || grams <= 0) {
       if (mounted) {
@@ -266,48 +261,6 @@ class _MealCardState extends ConsumerState<MealCard> {
     });
 
     widget.totalsRefreshTick.value++;
-  }
-
-
-  Widget _gramsDialogContent(
-    TextEditingController controller,
-    StateSetter setDialogState,
-  ) {
-    const quickGrams = [50, 100, 150, 200];
-
-    void setQuickGrams(int grams) {
-      controller.text = grams.toString();
-      controller.selection = TextSelection.collapsed(
-        offset: controller.text.length,
-      );
-      setDialogState(() {});
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Граммы'),
-          onChanged: (_) => setDialogState(() {}),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xs,
-          children: [
-            for (final grams in quickGrams)
-              ActionChip(
-                label: Text('$grams г'),
-                onPressed: () => setQuickGrams(grams),
-              ),
-          ],
-        ),
-      ],
-    );
   }
 
   @override
@@ -353,10 +306,10 @@ class _MealCardState extends ConsumerState<MealCard> {
                   const SizedBox(width: 2),
                   Expanded(
                     child: _MealTotalsFixedLine(
-                      calories: _kbjuValue(totals.calories),
-                      proteins: _kbjuValue(totals.proteins),
-                      fats: _kbjuValue(totals.fats),
-                      carbs: _kbjuValue(totals.carbs),
+                      calories: roundKbju(totals.calories),
+                      proteins: roundKbju(totals.proteins),
+                      fats: roundKbju(totals.fats),
+                      carbs: roundKbju(totals.carbs),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -399,10 +352,12 @@ class _MealCardState extends ConsumerState<MealCard> {
                     (i) => ListTile(
                       key: ValueKey(i.id),
                       onTap: () => _editItem(i.id, i.grams),
-                      title: Text(i.nameSnapshot, style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-  ),),
-                      
+                      title: Text(
+                        i.nameSnapshot,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       subtitle: Text(
                         kbzhuForGramsText(
                           grams: i.grams,
@@ -424,7 +379,6 @@ class _MealCardState extends ConsumerState<MealCard> {
       ),
     );
   }
-
 
   IconData _mealIcon(String value) {
     switch (value) {
@@ -472,7 +426,6 @@ class _MealTotalsFixedLine extends StatelessWidget {
   final double carbs;
   final TextStyle? style;
 
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -518,7 +471,6 @@ class _FixedKbzhuCell extends StatelessWidget {
 
   final String text;
   final TextStyle? style;
-
 
   @override
   Widget build(BuildContext context) {

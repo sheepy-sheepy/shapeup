@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/enums.dart';
 import '../../core/preferences_service.dart';
+import '../../core/number_utils.dart';
 import '../../domain/repositories/auth_repository.dart' as domain;
 import '../local/app_database.dart';
 import '../remote/supabase_provider.dart';
@@ -50,9 +51,6 @@ class AuthRepository implements domain.AuthRepository {
 
   User? get _remoteUser =>
       client.auth.currentSession?.user ?? client.auth.currentUser;
-
-  @override
-  bool get hasActiveRemoteSession => client.auth.currentSession?.user != null;
 
   @override
   String? get activeRemoteUserId => client.auth.currentSession?.user.id;
@@ -146,16 +144,6 @@ class AuthRepository implements domain.AuthRepository {
     return RegistrationStatus.fromValue(row.registrationStatus);
   }
 
-  /// Ручной вход в уже сохраненный локальный аккаунт.
-  ///
-  /// Логика входа production-ready:
-  /// 1) сначала ищем аккаунт в локальной базе;
-  /// 2) если нашли, обязательно сверяем почту и пароль;
-  /// 3) если пароль не подходит — не обращаемся дальше к Supabase и показываем
-  ///    ошибку о ненайденном аккаунте;
-  /// 4) если пароль подходит — открываем локальный аккаунт даже без интернета;
-  /// 5) при наличии интернета дополнительно восстанавливаем Supabase-сессию
-  ///    в фоне, чтобы настройки и пароль могли сохраняться в Supabase.
   @override
   Future<RegistrationStatus?> signInLocalIfExists({
     required String email,
@@ -201,14 +189,6 @@ class AuthRepository implements domain.AuthRepository {
     return RegistrationStatus.fromValue(row.registrationStatus);
   }
 
-  /// Совместимость со старым кодом.
-  @override
-  Future<RegistrationStatus?> signInOfflineIfPossible({
-    required String email,
-  }) {
-    return signInLocalIfExists(email: email);
-  }
-
   @override
   void startRemoteSessionWarmUpForLocalAccount({
     required String email,
@@ -229,9 +209,7 @@ class AuthRepository implements domain.AuthRepository {
 
     try {
       await pending.timeout(maxWait);
-    } catch (_) {
-      // Не блокируем локальную работу приложения из-за сетевого ожидания.
-    }
+    } catch (_) {}
   }
 
   Future<void> _signInRemoteAndPushLocalChanges({
@@ -254,18 +232,9 @@ class AuthRepository implements domain.AuthRepository {
       );
       await _setExplicitSignOut(false);
       _pushLocalProfileInBackground();
-    } catch (_) {
-      // Если локальный аккаунт уже есть на устройстве, вход не должен ломаться
-      // из-за временной сетевой ошибки или старого пароля. Remote-сессия будет
-      // восстановлена при следующем успешном онлайн-входе.
-    }
+    } catch (_) {}
   }
 
-  /// Отправляет в Supabase только данные профиля.
-  ///
-  /// История параметров тела и новые параметры из экрана «Параметры» остаются
-  /// только локально. В public.profiles хранится только первоначальный снимок
-  /// параметров тела, полученный при onboarding.
   @override
   Future<void>
       pushLocalProfileAndLatestMeasurementToSupabaseIfPossible() async {
@@ -316,11 +285,9 @@ class AuthRepository implements domain.AuthRepository {
     await _setExplicitSignOut(false);
   }
 
-  double _roundTo1(double value) => (value * 10).roundToDouble() / 10;
-
   double? _roundTo1OrNull(double? value) {
     if (value == null) return null;
-    return _roundTo1(value);
+    return roundTo1(value);
   }
 
   String? _dateOnlyOrNull(DateTime? value) {
@@ -569,13 +536,6 @@ class AuthRepository implements domain.AuthRepository {
       'latest_measurement_day_key, latest_weight_kg, latest_neck_cm, '
       'latest_waist_cm, latest_hips_cm, latest_body_fat_percent';
 
-  /// Загружает из Supabase только профиль аккаунта и сохраняет его локально.
-  ///
-  /// Если аккаунт есть в Supabase Auth, но строки в public.profiles нет
-  /// (например, профиль был удален вручную или регистрация оборвалась),
-  /// приложение не должно застревать в состоянии
-  /// «зарегистрироваться нельзя, войти нельзя». В таком случае создаем
-  /// минимальный профиль и отправляем пользователя на onboarding.
   @override
   Future<RegistrationStatus?> fetchRemoteProfileAndSaveLocal() async {
     final user = currentUser;
@@ -640,20 +600,6 @@ class AuthRepository implements domain.AuthRepository {
     );
 
     return Map<String, dynamic>.from(created as Map);
-  }
-
-  @override
-  Future<RegistrationStatus?> fetchRemoteStatus() async {
-    final user = currentUser;
-    if (user == null) return null;
-
-    final row = await client
-        .from('profiles')
-        .select('registration_status')
-        .eq('id', user.id)
-        .single();
-
-    return RegistrationStatus.fromValue(row['registration_status'] as String);
   }
 
   @override
@@ -750,9 +696,6 @@ class AuthRepository implements domain.AuthRepository {
             waistCm: waistCm,
             hipsCm: hipsCm,
             bodyFatPercent: bodyFatPercent,
-            updatedAt: drift.Value(
-              _dateTimeOrNull(row['updated_at']) ?? DateTime.now(),
-            ),
           ),
         );
   }
@@ -781,4 +724,3 @@ class AuthRepository implements domain.AuthRepository {
     return null;
   }
 }
-

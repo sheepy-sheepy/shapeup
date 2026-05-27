@@ -5,10 +5,12 @@ import '../../domain/repositories/auth_repository.dart' as auth_domain;
 import '../../domain/repositories/measurements_repository.dart' as domain;
 import '../../core/app_errors.dart';
 import '../../core/enums.dart';
-import '../../core/nutrition_calculator.dart';
+import '../../core/number_utils.dart';
+import '../../domain/services/nutrition_calculator.dart';
 import '../local/app_database.dart';
 
-final measurementsRepositoryProvider = Provider<domain.MeasurementsRepository>((ref) {
+final measurementsRepositoryProvider =
+    Provider<domain.MeasurementsRepository>((ref) {
   return MeasurementsRepository(
     ref.watch(appDatabaseProvider),
     ref.watch(auth_domain.authRepositoryProvider),
@@ -41,11 +43,11 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
     ensurePositive(hipsCm, 'Бедра');
     ensurePositive(heightCm, 'Рост');
 
-    final roundedWeightKg = _roundTo1(weightKg);
-    final roundedNeckCm = _roundTo1(neckCm);
-    final roundedWaistCm = _roundTo1(waistCm);
-    final roundedHipsCm = _roundTo1(hipsCm);
-    final roundedHeightCm = _roundTo1(heightCm);
+    final roundedWeightKg = roundTo1(weightKg);
+    final roundedNeckCm = roundTo1(neckCm);
+    final roundedWaistCm = roundTo1(waistCm);
+    final roundedHipsCm = roundTo1(hipsCm);
+    final roundedHeightCm = roundTo1(heightCm);
 
     final double bodyFat;
     try {
@@ -82,7 +84,6 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
           waistCm: drift.Value(roundedWaistCm),
           hipsCm: drift.Value(roundedHipsCm),
           bodyFatPercent: drift.Value(bodyFat),
-          updatedAt: drift.Value(DateTime.now()),
         ),
       );
     } else {
@@ -130,7 +131,6 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
               t.userId.equals(user.id) & t.dayKey.isSmallerOrEqualValue(dayKey))
           ..orderBy([
             (t) => drift.OrderingTerm.desc(t.dayKey),
-            (t) => drift.OrderingTerm.desc(t.updatedAt),
           ])
           ..limit(1))
         .get();
@@ -139,12 +139,6 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
     return rows.first;
   }
 
-  /// Возвращает параметры тела для расчета нормы на день.
-  ///
-  /// Обычная логика: брать последнюю запись на выбранную дату или раньше.
-  /// Production-fix: если выбран день раньше самой первой записи, используем
-  /// самую раннюю запись. Поэтому норма КБЖУ/воды доступна и для дней до
-  /// первого ввода параметров тела.
   @override
   Future<BodyMeasurement?> measurementForNormDay(String dayKey) async {
     final latest = await latestMeasurementUpToDay(dayKey);
@@ -157,7 +151,6 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
           ..where((t) => t.userId.equals(user.id))
           ..orderBy([
             (t) => drift.OrderingTerm.asc(t.dayKey),
-            (t) => drift.OrderingTerm.asc(t.updatedAt),
           ])
           ..limit(1))
         .get();
@@ -165,6 +158,4 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
     if (rows.isEmpty) return null;
     return rows.first;
   }
-
-  double _roundTo1(double value) => (value * 10).roundToDouble() / 10;
 }

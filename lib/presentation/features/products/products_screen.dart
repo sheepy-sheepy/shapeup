@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +6,11 @@ import '../../../core/app_ui.dart';
 import '../../../domain/entities/local_entities.dart';
 import '../../../domain/repositories/products_repository.dart';
 import '../../../domain/repositories/recipes_repository.dart';
+import '../../services/recipe_search_service.dart';
 import '../../../domain/usecases/recipe_nutrition_usecase.dart';
+import '../../controllers/base_foods_paging_controller.dart';
 import 'recipe_editor_screen.dart';
-import '../../widgets/csv_products_panel.dart';
+import '../../widgets/products_panel.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
@@ -21,15 +21,11 @@ class ProductsScreen extends ConsumerStatefulWidget {
 
 class _ProductsScreenState extends ConsumerState<ProductsScreen>
     with SingleTickerProviderStateMixin {
-  static const int _foodsPageSize = 150;
-
   final query = TextEditingController();
   final ScrollController _productsScrollController = ScrollController();
 
   late final TabController tabController;
-
-  Timer? _searchDebounce;
-  String _searchText = '';
+  late final BaseFoodsPagingController foodsController;
 
   late Future<_ProductsTabData> _productsFuture;
   late Future<List<Recipe>> _recipesFuture;
@@ -37,41 +33,39 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
   final Map<String, Future<List<RecipeIngredient>>> _recipeIngredientsFutures =
       {};
 
-  List<Food> _foods = [];
-  bool _foodsLoading = true;
-  bool _foodsHasMore = true;
-  int _foodsOffset = 0;
-  String _foodsQueryToken = '';
-  String? _foodsErrorText;
-
   @override
   void initState() {
     super.initState();
 
     tabController = TabController(length: 2, vsync: this);
-    query.addListener(_onSearchChanged);
-    _productsScrollController.addListener(_onProductsScroll);
+    foodsController = BaseFoodsPagingController(
+      productsRepository: ref.read(productsRepositoryProvider),
+    );
+
+    foodsController.bind(
+      queryController: query,
+      scrollController: _productsScrollController,
+      onFoodsChanged: () {
+        if (!mounted) return;
+        setState(() {});
+      },
+      onSearchAccepted: () {
+        _productsFuture = _loadProducts();
+        _recipesFuture = _loadRecipes();
+        _recipeIngredientsFutures.clear();
+      },
+    );
 
     _productsFuture = _loadProducts();
     _recipesFuture = _loadRecipes();
-
-    _foodsQueryToken = _searchText;
-    _loadFoodsPage(
-      query: _foodsQueryToken,
-      offset: 0,
-      replace: true,
-      loadingAlreadySet: true,
-    );
+    foodsController.start();
   }
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
+    foodsController.dispose();
 
-    query.removeListener(_onSearchChanged);
     query.dispose();
-
-    _productsScrollController.removeListener(_onProductsScroll);
     _productsScrollController.dispose();
 
     tabController.dispose();
@@ -79,193 +73,23 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
     super.dispose();
   }
 
-  bool _onProductsScrollNotification(ScrollNotification notification) {
-    if (notification.metrics.axis != Axis.vertical) return false;
-    if (_foodsLoading || !_foodsHasMore) return false;
-
-    final nearBottom = notification.metrics.extentAfter < 500;
-
-    if (nearBottom) {
-      _loadNextFoodsPage();
-    }
-
-    return false;
-  }
-
-  void _onSearchChanged() {
-    _searchDebounce?.cancel();
-
-    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
-      final next = query.text.trim();
-
-      if (next == _searchText) return;
-      if (!mounted) return;
-
-      setState(() {
-        _searchText = next;
-        _productsFuture = _loadProducts();
-        _recipesFuture = _loadRecipes();
-        _recipeIngredientsFutures.clear();
-
-        _foods = [];
-        _foodsOffset = 0;
-        _foodsHasMore = true;
-        _foodsLoading = true;
-        _foodsErrorText = null;
-        _foodsQueryToken = next;
-      });
-
-      if (_productsScrollController.hasClients) {
-        _productsScrollController.jumpTo(0);
-      }
-
-      _loadFoodsPage(
-        query: next,
-        offset: 0,
-        replace: true,
-        loadingAlreadySet: true,
-      );
-    });
-  }
-
-  void _onProductsScroll() {
-    if (!_productsScrollController.hasClients) return;
-    if (_foodsLoading || !_foodsHasMore) return;
-
-    final position = _productsScrollController.position;
-    final remaining = position.maxScrollExtent - position.pixels;
-
-    if (remaining < 500) {
-      _loadNextFoodsPage();
-    }
-  }
-
-  Future<void> _loadNextFoodsPage() async {
-    if (_foodsLoading || !_foodsHasMore) return;
-
-    await _loadFoodsPage(
-      query: _foodsQueryToken,
-      offset: _foodsOffset,
-      replace: false,
-    );
-  }
-
-  Future<void> _loadFoodsPage({
-    required String query,
-    required int offset,
-    required bool replace,
-    bool loadingAlreadySet = false,
-  }) async {
-    if (!loadingAlreadySet) {
-      if (!mounted) return;
-
-      setState(() {
-        _foodsLoading = true;
-        _foodsErrorText = null;
-      });
-    }
-
-    try {
-      final loaded = await ref.read(productsRepositoryProvider).baseFoodsPage(
-            query,
-            offset: offset,
-            limit: _foodsPageSize,
-          );
-
-      if (!mounted || query != _foodsQueryToken) return;
-
-      setState(() {
-        if (replace) {
-          _foods = loaded;
-          _foodsOffset = loaded.length;
-        } else {
-          final existingIds = _foods.map((e) => e.id).toSet();
-
-          final uniqueLoaded = loaded.where((e) {
-            if (existingIds.contains(e.id)) return false;
-            existingIds.add(e.id);
-            return true;
-          }).toList();
-
-          _foods = [..._foods, ...uniqueLoaded];
-
-          // offset увеличиваем на loaded.length, а не uniqueLoaded.length,
-          // чтобы не зациклиться, если база вдруг вернула дубль.
-          _foodsOffset += loaded.length;
-        }
-
-        _foodsHasMore = loaded.length == _foodsPageSize;
-        _foodsLoading = false;
-        _foodsErrorText = null;
-      });
-    } catch (e) {
-      if (!mounted || query != _foodsQueryToken) return;
-
-      setState(() {
-        _foodsLoading = false;
-        _foodsHasMore = false;
-        _foodsErrorText = e.toString();
-      });
-    }
-  }
-
   Future<_ProductsTabData> _loadProducts() async {
     final productsRepo = ref.read(productsRepositoryProvider);
 
-    final custom = await productsRepo.customProducts(_searchText);
+    final custom =
+        await productsRepo.customProducts(foodsController.searchText);
 
     return _ProductsTabData(
       customProducts: custom,
     );
   }
 
-  String _normalizeSearch(String value) {
-    return value.trim().toLowerCase();
-  }
-
-  List<Recipe> _filterAndSortRecipesBySearch(
-    List<Recipe> recipes,
-    String query,
-  ) {
-    final q = _normalizeSearch(query);
-
-    if (q.isEmpty) {
-      return recipes;
-    }
-
-    final startsWith = <Recipe>[];
-    final contains = <Recipe>[];
-
-    for (final recipe in recipes) {
-      final name = _normalizeSearch(recipe.name);
-
-      if (name.startsWith(q)) {
-        startsWith.add(recipe);
-      } else if (name.contains(q)) {
-        contains.add(recipe);
-      }
-    }
-
-    startsWith.sort(
-      (a, b) => _normalizeSearch(a.name).compareTo(_normalizeSearch(b.name)),
-    );
-
-    contains.sort(
-      (a, b) => _normalizeSearch(a.name).compareTo(_normalizeSearch(b.name)),
-    );
-
-    return [
-      ...startsWith,
-      ...contains,
-    ];
-  }
-
   Future<List<Recipe>> _loadRecipes() async {
     final allRecipes = await ref.read(recipesRepositoryProvider).recipes('');
 
-    return _filterAndSortRecipesBySearch(
+    return RecipeSearchService.filterAndSortBySearch(
       allRecipes,
-      _searchText,
+      foodsController.searchText,
     );
   }
 
@@ -312,6 +136,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final foods = foodsController.foods;
+    final foodsLoading = foodsController.foodsLoading;
+    final foodsHasMore = foodsController.foodsHasMore;
+    final foodsErrorText = foodsController.foodsErrorText;
+
     final productsRepo = ref.watch(productsRepositoryProvider);
     final recipesRepo = ref.watch(recipesRepositoryProvider);
 
@@ -397,7 +226,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                     final custom = data.customProducts;
 
                     return NotificationListener<ScrollNotification>(
-                      onNotification: _onProductsScrollNotification,
+                      onNotification: foodsController.onScrollNotification,
                       child: ListView(
                         key: const PageStorageKey<String>('products_tab_list'),
                         controller: _productsScrollController,
@@ -405,22 +234,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                           CustomProductsPanel(
                             children: [
                               if (custom.isEmpty)
-                                const ListTile(title: Text('Нет своих продуктов')),
+                                const ListTile(
+                                    title: Text('Нет своих продуктов')),
                               ...custom.map(
-                                (e) => ListTile(
-                                  title: CustomProductNameLabel(name: e.name),
-                                  subtitle: Text(
-                                    kbzhuPer100Text(
-                                      calories: e.calories,
-                                      proteins: e.proteins,
-                                      fats: e.fats,
-                                      carbs: e.carbs,
-                                    ),
-                                  ),
+                                (e) => CustomProductTile(
+                                  product: e,
                                   onTap: () async {
                                     await showDialog(
                                       context: context,
-                                      builder: (_) => _ProductDialog(product: e),
+                                      builder: (_) =>
+                                          _ProductDialog(product: e),
                                     );
 
                                     if (!mounted) return;
@@ -441,32 +264,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                           ),
                           CsvProductsPanel(
                             children: [
-                              if (_foodsErrorText != null)
+                              if (foodsErrorText != null)
                                 ListTile(
-                                  title: const Text('Ошибка загрузки базы продуктов'),
-                                  subtitle: Text(_foodsErrorText!),
+                                  title: const Text(
+                                      'Ошибка загрузки базы продуктов'),
+                                  subtitle: Text(foodsErrorText),
                                 ),
-                              if (_foods.isEmpty && !_foodsLoading)
-                                const ListTile(title: Text('Ничего не найдено')),
-                              ..._foods.map(
-                                (e) => ListTile(
-                                  title: CsvFoodNameLabel(name: e.name),
-                                  subtitle: Text(
-                                    kbzhuPer100Text(
-                                      calories: e.calories,
-                                      proteins: e.proteins,
-                                      fats: e.fats,
-                                      carbs: e.carbs,
-                                    ),
-                                  ),
-                                ),
+                              if (foods.isEmpty && !foodsLoading)
+                                const ListTile(
+                                    title: Text('Ничего не найдено')),
+                              ...foods.map(
+                                (e) => CsvFoodTile(food: e),
                               ),
-                              if (_foodsLoading)
+                              if (foodsLoading)
                                 const Padding(
                                   padding: EdgeInsets.all(16),
-                                  child: Center(child: CircularProgressIndicator()),
+                                  child: Center(
+                                      child: CircularProgressIndicator()),
                                 ),
-                              if (!_foodsLoading && _foodsHasMore)
+                              if (!foodsLoading && foodsHasMore)
                                 const SizedBox(height: 16),
                             ],
                           ),
@@ -510,7 +326,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                                       return const Text('Загрузка КБЖУ...');
                                     }
 
-                                    final ingredients = ingredientsSnapshot.data!;
+                                    final ingredients =
+                                        ingredientsSnapshot.data!;
 
                                     return Text(
                                       _recipeKbzhuPer100Text(e, ingredients),
@@ -557,7 +374,6 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
     );
   }
 }
-
 
 class _ProductsTabData {
   const _ProductsTabData({
@@ -735,11 +551,9 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                           onChanged: (_) => refreshButton(),
                         ),
                         if (_macroCaloriesText() != null) ...[
-                          
                           Align(
                             alignment: Alignment.center,
                             child: Text(
-                              
                               _macroCaloriesText()!,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),

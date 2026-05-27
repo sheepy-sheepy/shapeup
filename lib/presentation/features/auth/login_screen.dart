@@ -6,9 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/enums.dart';
 import '../../../core/app_errors.dart';
 import '../../../core/app_ui.dart';
-import '../../../core/design.dart';
 import '../../../domain/repositories/auth_repository.dart';
-import '../../widgets/shapeup_logo.dart';
+import 'widgets/auth_form_card.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -58,12 +57,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       final authRepo = ref.read(authRepositoryProvider);
-
-      // Сначала всегда проверяем локально сохраненные аккаунты.
-      // Если аккаунт уже был на этом устройстве, обязательно сверяем пароль
-      // с локально сохраненным хэшем. Если пароль верный — открываем аккаунт
-      // даже без интернета. При наличии интернета Supabase-сессия восстановится
-      // в фоне, чтобы настройки дальше могли сохраняться в Supabase.
       final localStatus = await authRepo.signInLocalIfExists(
         email: userEmail,
         password: userPassword,
@@ -77,7 +70,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      // Если локально аккаунта нет, только тогда проверяем Supabase.
       await authRepo.signIn(
         email: userEmail,
         password: userPassword,
@@ -142,15 +134,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Вход'),
         actions: const [
           ScreenHelpAction(
             title: 'Вход',
-            message: 
+            message:
                 'Введите почту и пароль, указанные при регистрации, и нажмите «Войти».\n\n'
                 'Если почта ещё не подтверждена, приложение откроет экран ввода кода.\n\n'
                 'Если onboarding не завершён, приложение откроет экран заполнения параметров.\n\n'
@@ -158,90 +148,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Center(
-                        child: ShapeUpLogo(
-                          size: 68,
-                          circle: true,
-                          padding: EdgeInsets.all(3),
-                          hero: true,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Вход',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        'Войдите, чтобы продолжить работу с ShapeUp',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                      const SizedBox(height: AppSpacing.xl),
-                      TextField(
-                        controller: email,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        enabled: !loading,
-                        decoration: const InputDecoration(
-                          labelText: 'Почта',
-                          prefixIcon: Icon(Icons.mail_outline),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      TextField(
-                        controller: password,
-                        obscureText: true,
-                        enabled: !loading,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _canSubmit ? _submit() : null,
-                        decoration: const InputDecoration(
-                          labelText: 'Пароль',
-                          prefixIcon: Icon(Icons.lock_outline),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      FilledButton(
-                        onPressed: _canSubmit ? _submit : null,
-                        child: loading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Войти'),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      TextButton(
-                        onPressed: loading ? null : () => context.go('/register'),
-                        child: const Text('Еще нет аккаунта?'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      body: AuthFormCard(
+        title: 'Вход',
+        subtitle: 'Войдите, чтобы продолжить работу с ShapeUp',
+        emailController: email,
+        passwordController: password,
+        loading: loading,
+        canSubmit: _canSubmit,
+        onSubmit: _submit,
+        submitText: 'Войти',
+        bottomText: 'Еще нет аккаунта?',
+        onBottomPressed: () => context.go('/register'),
       ),
     );
   }

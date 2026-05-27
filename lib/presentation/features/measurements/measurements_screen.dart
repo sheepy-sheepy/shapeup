@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/app_ui.dart';
 import '../../../core/design.dart';
 import '../../../core/enums.dart';
 import '../../../core/extensions.dart';
+import '../../../core/number_utils.dart';
+import '../../../domain/services/nutrition_calculator.dart';
 import '../../../domain/entities/local_entities.dart';
 import '../../../domain/repositories/measurements_repository.dart';
-import '../../../domain/services/nutrition_calculator.dart';
 import '../../../domain/usecases/measurements_loader.dart';
+import '../../mixins/today_change_scheduler.dart';
 import '../../state/app_refresh.dart';
 
 final _measurementsLoadDataProvider =
@@ -23,7 +24,8 @@ class MeasurementsScreen extends ConsumerStatefulWidget {
   ConsumerState<MeasurementsScreen> createState() => _MeasurementsScreenState();
 }
 
-class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
+class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
+    with TodayChangeScheduler<MeasurementsScreen> {
   final formKey = GlobalKey<FormState>();
 
   final weight = TextEditingController();
@@ -32,7 +34,6 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
   final hips = TextEditingController();
 
   late String todayKey;
-  String? _pendingTodayKey;
 
   @override
   void initState() {
@@ -61,27 +62,13 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     super.dispose();
   }
 
-  double _roundTo(double value, int decimals) {
-    var factor = 1.0;
-    for (var i = 0; i < decimals; i++) {
-      factor *= 10.0;
-    }
-    return (value * factor).roundToDouble() / factor;
-  }
-
-  double _bodyValue(double value) => _roundTo(value, 1);
-
   void _onFieldChanged() {
     if (!mounted) return;
     setState(() {});
   }
 
   void _handleTodayChanged(String nextDayKey) {
-    if (!mounted) return;
-    if (nextDayKey == todayKey) {
-      _pendingTodayKey = null;
-      return;
-    }
+    if (!mounted || nextDayKey == todayKey) return;
 
     weight.clear();
     neck.clear();
@@ -90,16 +77,6 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
     setState(() {
       todayKey = nextDayKey;
-      _pendingTodayKey = null;
-    });
-  }
-
-  void _scheduleTodayChangeIfNeeded(String nextDayKey) {
-    if (nextDayKey == todayKey || nextDayKey == _pendingTodayKey) return;
-
-    _pendingTodayKey = nextDayKey;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handleTodayChanged(nextDayKey);
     });
   }
 
@@ -109,7 +86,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     );
 
     if (value == null || value <= 0) return null;
-    return _bodyValue(value);
+    return roundTo1(value);
   }
 
   bool get _canSaveMeasurements {
@@ -213,10 +190,10 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     try {
       await ref.read(measurementsRepositoryProvider).saveMeasurement(
             dayKey: todayKey,
-            weightKg: _bodyValue(weightKg),
-            neckCm: _bodyValue(neckCm),
-            waistCm: _bodyValue(waistCm),
-            hipsCm: _bodyValue(hipsCm),
+            weightKg: roundTo1(weightKg),
+            neckCm: roundTo1(neckCm),
+            waistCm: roundTo1(waistCm),
+            hipsCm: roundTo1(hipsCm),
             heightCm: user.heightCm!,
             sex: Sex.values.firstWhere((e) => e.name == user.sex),
           );
@@ -241,7 +218,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     });
 
     final currentTodayKey = ref.watch(currentDayKeyProvider);
-    _scheduleTodayChangeIfNeeded(currentTodayKey);
+    scheduleTodayChangeIfNeeded(
+      currentTodayKey: todayKey,
+      nextTodayKey: currentTodayKey,
+      onTodayChanged: _handleTodayChanged,
+    );
 
     final loadData = ref.watch(_measurementsLoadDataProvider(todayKey));
 
@@ -428,8 +409,6 @@ class _MeasurementFormContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return Form(
       key: formKey,
       child: Column(

@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../domain/repositories/auth_repository.dart' as auth_domain;
 import '../../domain/repositories/products_repository.dart' as domain;
 import '../../core/app_errors.dart';
+import '../../core/number_utils.dart';
 import '../local/app_database.dart';
 
 final productsRepositoryProvider = Provider<domain.ProductsRepository>((ref) {
@@ -20,16 +21,6 @@ class ProductsRepository implements domain.ProductsRepository {
   final AppDatabase db;
   final auth_domain.AuthRepository auth;
   final _uuid = const Uuid();
-
-  double _roundTo(double value, int decimals) {
-    var factor = 1.0;
-    for (var i = 0; i < decimals; i++) {
-      factor *= 10.0;
-    }
-    return (value * factor).roundToDouble() / factor;
-  }
-
-  double _kbju(double value) => _roundTo(value, 2);
 
   static const int _baseFoodsLimit = 150;
 
@@ -160,17 +151,6 @@ class ProductsRepository implements domain.ProductsRepository {
     );
   }
 
-  /// Старый метод оставлен для других экранов:
-  /// recipe_editor_screen.dart, meal_item_picker_screen.dart и т.д.
-  @override
-  Future<List<Food>> baseFoods(String query) {
-    return baseFoodsPage(
-      query,
-      offset: 0,
-      limit: _baseFoodsLimit,
-    );
-  }
-
   Future<void> _ensureUniqueProductName({
     required String name,
     String? exceptProductId,
@@ -232,10 +212,10 @@ class ProductsRepository implements domain.ProductsRepository {
 
     final id = _uuid.v4();
 
-    final roundedCalories = _kbju(calories);
-    final roundedProteins = _kbju(proteins);
-    final roundedFats = _kbju(fats);
-    final roundedCarbs = _kbju(carbs);
+    final roundedCalories = roundKbju(calories);
+    final roundedProteins = roundKbju(proteins);
+    final roundedFats = roundKbju(fats);
+    final roundedCarbs = roundKbju(carbs);
 
     await db.into(db.customProducts).insert(
           CustomProductsCompanion.insert(
@@ -248,7 +228,6 @@ class ProductsRepository implements domain.ProductsRepository {
             carbs: roundedCarbs,
           ),
         );
-
   }
 
   @override
@@ -268,10 +247,10 @@ class ProductsRepository implements domain.ProductsRepository {
 
     await _ensureUniqueProductName(name: name, exceptProductId: id);
 
-    final roundedCalories = _kbju(calories);
-    final roundedProteins = _kbju(proteins);
-    final roundedFats = _kbju(fats);
-    final roundedCarbs = _kbju(carbs);
+    final roundedCalories = roundKbju(calories);
+    final roundedProteins = roundKbju(proteins);
+    final roundedFats = roundKbju(fats);
+    final roundedCarbs = roundKbju(carbs);
 
     await (db.update(db.customProducts)..where((t) => t.id.equals(id))).write(
       CustomProductsCompanion(
@@ -282,7 +261,6 @@ class ProductsRepository implements domain.ProductsRepository {
         carbs: drift.Value(roundedCarbs),
       ),
     );
-
   }
 
   @override
@@ -292,9 +270,7 @@ class ProductsRepository implements domain.ProductsRepository {
         deleted: drift.Value(true),
       ),
     );
-
   }
-
 }
 
 class _SearchHit<T> {

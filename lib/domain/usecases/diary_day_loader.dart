@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/enums.dart';
-import '../../core/nutrition_calculator.dart';
+import '../services/nutrition_calculator.dart';
 import '../entities/local_entities.dart';
 import '../repositories/diary_repository.dart';
 import '../repositories/measurements_repository.dart';

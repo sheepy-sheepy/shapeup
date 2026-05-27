@@ -9,7 +9,8 @@ import '../../domain/repositories/profile_repository.dart' as domain;
 import '../../core/app_errors.dart';
 import '../../core/date_utils.dart';
 import '../../core/enums.dart';
-import '../../core/nutrition_calculator.dart';
+import '../../core/number_utils.dart';
+import '../../domain/services/nutrition_calculator.dart';
 import '../local/app_database.dart';
 import '../remote/supabase_provider.dart';
 
@@ -34,9 +35,6 @@ class ProfileRepository implements domain.ProfileRepository {
     final user = auth.currentUser;
     if (user == null) throw Exception('Пользователь не авторизован');
 
-    // Если пользователь вошел локально, Supabase-сессия может еще
-    // восстанавливаться в фоне. Для завершения onboarding обязательно нужна
-    // активная remote-сессия, иначе update в profiles может не изменить строку.
     await auth.waitForRemoteSessionWarmUp(
       maxWait: const Duration(seconds: 12),
     );
@@ -50,14 +48,11 @@ class ProfileRepository implements domain.ProfileRepository {
 
     final email = auth.currentEmail ?? user.email ?? '';
     final dayKey = dayKeyFromDate(DateTime.now());
-
-    // Production-fix: все числовые параметры тела в profiles сохраняем с 1 знаком.
-    // Так в Supabase не появятся значения вроде 170.349999999 или 70.257.
-    final heightCm = _roundTo1(data.heightCm);
-    final weightKg = _roundTo1(data.weightKg);
-    final neckCm = _roundTo1(data.neckCm);
-    final waistCm = _roundTo1(data.waistCm);
-    final hipsCm = _roundTo1(data.hipsCm);
+    final heightCm = roundTo1(data.heightCm);
+    final weightKg = roundTo1(data.weightKg);
+    final neckCm = roundTo1(data.neckCm);
+    final waistCm = roundTo1(data.waistCm);
+    final hipsCm = roundTo1(data.hipsCm);
 
     final bodyFat = NutritionCalculator.bodyFatPercent(
       sex: data.sex,
@@ -67,9 +62,6 @@ class ProfileRepository implements domain.ProfileRepository {
       hipsCm: hipsCm,
     );
 
-    // В Supabase хранится только профиль аккаунта и последний снимок
-    // параметров тела для расчета нормы КБЖУ/воды на новом устройстве.
-    // Подробная история измерений остается локально в Drift.
     final payload = <String, dynamic>{
       'id': remoteUserId,
       'email': email,
@@ -144,10 +136,8 @@ class ProfileRepository implements domain.ProfileRepository {
     final user = auth.currentUser;
     if (user == null) throw Exception('Пользователь не авторизован');
 
-    final roundedHeightCm = _roundTo1(heightCm);
+    final roundedHeightCm = roundTo1(heightCm);
 
-    // После локального входа Supabase-сессия может еще восстанавливаться в фоне.
-    // Ждем ее недолго, но не даем экрану настроек зависнуть бесконечно.
     await auth.waitForRemoteSessionWarmUp(
       maxWait: const Duration(seconds: 12),
     );
@@ -159,8 +149,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
 
-    // Для пересчета % жира сначала берем локальный замер. Это быстрее и не
-    // создает лишний запрос к Supabase перед сохранением профиля.
     final latestLocalMeasurement = await _latestLocalMeasurement(user.id);
     final bodyFatSource = latestLocalMeasurement == null
         ? await _fetchProfileMeasurementForBodyFat(remoteUserId)
@@ -221,7 +209,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
 
-    // Локальную базу обновляем только после успешного сохранения в Supabase.
     await db.into(db.localUsers).insertOnConflictUpdate(
           LocalUsersCompanion.insert(
             userId: user.id,
@@ -247,10 +234,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
 
-    // Если на телефоне дата меньше, чем дата последнего локального замера,
-    // экран «Параметры» показывает замер именно за текущий день. Поэтому после
-    // изменения пола/роста нужно пересчитать и сегодняшний локальный замер тоже,
-    // иначе на экране останется старый % жира.
     if (todayLocalMeasurement != null &&
         recalculatedTodayBodyFatPercent != null) {
       await (db.update(db.bodyMeasurements)
@@ -280,7 +263,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
 
-    // Пароль нельзя trim-ить: пробел может быть допустимым символом пароля.
     final oldValue = currentPassword;
     final newValue = newPassword;
 
@@ -294,9 +276,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
 
-    // Сначала проверяем текущий пароль. Поэтому если старый пароль неверный,
-    // пользователь увидит именно ошибку старого пароля, даже если новый пароль
-    // совпадает с введенным старым значением.
     try {
       await client.auth.signInWithPassword(
         email: user!.email!,
@@ -327,8 +306,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
 
-    // Supabase уже принял новый пароль. Сразу обновляем локальный хэш,
-    // иначе локальный вход продолжит принимать старый пароль и отклонять новый.
     await auth.cacheLocalPasswordForCurrentUser(password: newValue);
   }
 
@@ -346,7 +323,6 @@ class ProfileRepository implements domain.ProfileRepository {
           ..where((t) => t.userId.equals(userId))
           ..orderBy([
             (t) => OrderingTerm.desc(t.dayKey),
-            (t) => OrderingTerm.desc(t.updatedAt),
           ])
           ..limit(1))
         .get();
@@ -424,9 +400,9 @@ class ProfileRepository implements domain.ProfileRepository {
       final bodyFat = NutritionCalculator.bodyFatPercent(
         sex: userSex,
         heightCm: heightCm,
-        neckCm: _roundTo1(values.neckCm),
-        waistCm: _roundTo1(values.waistCm),
-        hipsCm: _roundTo1(values.hipsCm),
+        neckCm: roundTo1(values.neckCm),
+        waistCm: roundTo1(values.waistCm),
+        hipsCm: roundTo1(values.hipsCm),
       );
 
       if (!bodyFat.isFinite || bodyFat <= 0) {
@@ -440,8 +416,6 @@ class ProfileRepository implements domain.ProfileRepository {
       );
     }
   }
-
-  double _roundTo1(double value) => (value * 10).roundToDouble() / 10;
 
   String _dateOnly(DateTime value) {
     final year = value.year.toString().padLeft(4, '0');

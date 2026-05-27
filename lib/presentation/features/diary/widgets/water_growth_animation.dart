@@ -108,8 +108,6 @@ class _WaterGrowthPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
 
-    // Индикатор воды специально меньше общей области рисования.
-    // Лианы и цветы идут вокруг рамки снаружи, поэтому не попадают в воду.
     final waterArea = RRect.fromRectAndRadius(
       Rect.fromLTWH(24, 15, size.width - 48, size.height - 30),
       const Radius.circular(AppRadius.lg),

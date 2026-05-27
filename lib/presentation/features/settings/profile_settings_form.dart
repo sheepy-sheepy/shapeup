@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/enums.dart';
 import '../../../core/date_utils.dart';
-import '../../../core/extensions.dart';
-import '../../../core/design.dart';
-import '../../../domain/services/nutrition_calculator.dart';
 import '../../../core/app_ui.dart';
+import '../../../core/number_utils.dart';
+import '../../../domain/services/nutrition_calculator.dart';
 import '../../../domain/repositories/profile_repository.dart';
 import '../../../domain/usecases/profile_settings_loader.dart';
 import '../../state/app_refresh.dart';
+import '../../widgets/profile_form_fields.dart';
 
 final _profileSettingsLoadDataProvider =
     FutureProvider.autoDispose<ProfileSettingsLoadData>(
@@ -32,7 +31,6 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
   final deficit = TextEditingController();
   final dob = TextEditingController();
 
-
   Sex sex = Sex.male;
   Goal goal = Goal.loseWeight;
   ActivityLevel activity = ActivityLevel.sedentary;
@@ -49,12 +47,9 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
   Goal? _initialGoal;
   ActivityLevel? _initialActivity;
 
-  Color get _dropdownBackgroundColor => Colors.white.withValues(alpha: 0.94);
-
   @override
   void initState() {
     super.initState();
-
 
     name.addListener(_onFormChanged);
     height.addListener(_onFormChanged);
@@ -77,17 +72,6 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     super.dispose();
   }
 
-  double _roundTo(double value, int decimals) {
-    var factor = 1.0;
-    for (var i = 0; i < decimals; i++) {
-      factor *= 10.0;
-    }
-    return (value * factor).roundToDouble() / factor;
-  }
-
-  double _heightValue(double value) => _roundTo(value, 1);
-  double _deficitValue(double value) => _roundTo(value, 0);
-
   String _formatNumber(double value, int decimals) {
     return value.toStringAsFixed(decimals);
   }
@@ -104,7 +88,7 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     );
 
     if (value == null || value <= 0) return null;
-    return _heightValue(value);
+    return roundTo1(value);
   }
 
   double? _deficitFromController() {
@@ -113,32 +97,11 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     );
 
     if (value == null || value < 50 || value > 1000) return null;
-    return _deficitValue(value);
-  }
-
-  DateTime? _parseDobText(String text) {
-    final trimmed = text.trim();
-
-    final match = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(trimmed);
-    if (match == null) return null;
-
-    final day = int.tryParse(match.group(1)!);
-    final month = int.tryParse(match.group(2)!);
-    final year = int.tryParse(match.group(3)!);
-
-    if (day == null || month == null || year == null) return null;
-
-    final parsed = DateTime(year, month, day);
-
-    if (parsed.day != day || parsed.month != month || parsed.year != year) {
-      return null;
-    }
-
-    return parsed;
+    return roundTo0(value);
   }
 
   DateTime? _dobFromController() {
-    return _parseDobText(dob.text);
+    return tryParseRuDate(dob.text);
   }
 
   bool _sameDate(DateTime? a, DateTime? b) {
@@ -230,7 +193,7 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
   }
 
   String? _dobValidator(String? value) {
-    if (_parseDobText(value ?? '') == null) {
+    if (tryParseRuDate(value ?? '') == null) {
       return 'Введите дату в формате ДД.ММ.ГГГГ';
     }
 
@@ -242,10 +205,9 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
 
     _initializingControllers = true;
 
-    final formattedHeight = user.heightCm == null
-        ? ''
-        : _formatNumber(_heightValue(user.heightCm!), 1);
-    final formattedDeficit = _formatNumber(_deficitValue(user.deficitKcal), 0);
+    final formattedHeight =
+        user.heightCm == null ? '' : _formatNumber(roundTo1(user.heightCm!), 1);
+    final formattedDeficit = _formatNumber(roundTo0(user.deficitKcal), 0);
 
     name.text = user.name ?? '';
     height.text = formattedHeight;
@@ -272,9 +234,8 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     }
 
     _initialName = name.text.trim();
-    _initialHeightCm =
-        user.heightCm == null ? null : _heightValue(user.heightCm!);
-    _initialDeficitKcal = _deficitValue(user.deficitKcal);
+    _initialHeightCm = user.heightCm == null ? null : roundTo1(user.heightCm!);
+    _initialDeficitKcal = roundTo0(user.deficitKcal);
     _initialDateOfBirth = user.dateOfBirth;
     _initialSex = sex;
     _initialGoal = goal;
@@ -306,15 +267,15 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
             sex: sex.name,
             goal: goal.name,
             activityLevel: activity.name,
-            heightCm: _heightValue(heightCm),
-            deficitKcal: _deficitValue(deficitKcal),
+            heightCm: roundTo1(heightCm),
+            deficitKcal: roundTo0(deficitKcal),
             dateOfBirth: dateOfBirth,
           );
 
       if (!mounted) return;
 
-      final savedHeightCm = _heightValue(heightCm);
-      final savedDeficitKcal = _deficitValue(deficitKcal);
+      final savedHeightCm = roundTo1(heightCm);
+      final savedDeficitKcal = roundTo0(deficitKcal);
 
       _initializingControllers = true;
       height.text = _formatNumber(savedHeightCm, 1);
@@ -352,113 +313,6 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     }
   }
 
-
-  Widget _selectedDropdownText(String text) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  Widget _dropdownMenuText(String text) {
-    return Text(
-      text,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  Widget _sexDropdown() {
-    return DropdownButtonFormField<Sex>(
-      dropdownColor: _dropdownBackgroundColor,
-      initialValue: sex,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Пол'),
-      selectedItemBuilder: (context) {
-        return Sex.values
-            .map((e) => _selectedDropdownText(e.label))
-            .toList();
-      },
-      items: Sex.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: _dropdownMenuText(e.label),
-            ),
-          )
-          .toList(),
-      onChanged: (v) {
-        if (v == null) return;
-        setState(() => sex = v);
-      },
-    );
-  }
-
-  Widget _goalDropdown() {
-    return DropdownButtonFormField<Goal>(
-      dropdownColor: _dropdownBackgroundColor,
-      initialValue: goal,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Цель'),
-      selectedItemBuilder: (context) {
-        return Goal.values
-            .map((e) => _selectedDropdownText(e.label))
-            .toList();
-      },
-      items: Goal.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: _dropdownMenuText(e.label),
-            ),
-          )
-          .toList(),
-      onChanged: (v) {
-        if (v == null) return;
-        setState(() => goal = v);
-      },
-    );
-  }
-
-  Widget _activityDropdown() {
-    return DropdownButtonFormField<ActivityLevel>(
-      dropdownColor: _dropdownBackgroundColor,
-      initialValue: activity,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Образ жизни'),
-      selectedItemBuilder: (context) {
-        return ActivityLevel.values
-            .map((e) => _selectedDropdownText(e.label))
-            .toList();
-      },
-      items: ActivityLevel.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: _dropdownMenuText(e.label),
-            ),
-          )
-          .toList(),
-      onChanged: (v) {
-        if (v == null) return;
-        setState(() => activity = v);
-      },
-    );
-  }
-
-  List<Widget> _withFieldSpacing(List<Widget> children) {
-    return [
-      for (var i = 0; i < children.length; i++) ...[
-        children[i],
-        if (i != children.length - 1) const SizedBox(height: AppSpacing.md),
-      ],
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     final loadData = ref.watch(_profileSettingsLoadDataProvider);
@@ -484,7 +338,7 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
         return Form(
           key: formKey,
           child: Column(
-            children: _withFieldSpacing([
+            children: withProfileFieldSpacing([
               TextFormField(
                 controller: name,
                 decoration: const InputDecoration(labelText: 'Имя'),
@@ -503,7 +357,9 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Дефицит / Профицит, ккал'),
+                decoration: const InputDecoration(
+                  labelText: 'Дефицит / Профицит, ккал',
+                ),
                 validator: _deficitValidator,
               ),
               TextFormField(
@@ -514,9 +370,21 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
                 ),
                 validator: _dobValidator,
               ),
-              _sexDropdown(),
-              _goalDropdown(),
-              _activityDropdown(),
+              ProfileSexDropdown(
+                value: sex,
+                dropdownColor: Colors.white.withValues(alpha: 0.94),
+                onChanged: (value) => setState(() => sex = value),
+              ),
+              ProfileGoalDropdown(
+                value: goal,
+                dropdownColor: Colors.white.withValues(alpha: 0.94),
+                onChanged: (value) => setState(() => goal = value),
+              ),
+              ProfileActivityDropdown(
+                value: activity,
+                dropdownColor: Colors.white.withValues(alpha: 0.94),
+                onChanged: (value) => setState(() => activity = value),
+              ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: canSave ? () => _saveProfile(data) : null,
@@ -535,4 +403,3 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     );
   }
 }
-

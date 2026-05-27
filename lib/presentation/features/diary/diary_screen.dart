@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_ui.dart';
 import '../../../core/date_utils.dart';
+import '../../mixins/today_change_scheduler.dart';
 import '../../state/app_refresh.dart';
 import 'widgets/diary_content.dart';
 
@@ -13,10 +14,10 @@ class DiaryScreen extends ConsumerStatefulWidget {
   ConsumerState<DiaryScreen> createState() => _DiaryScreenState();
 }
 
-class _DiaryScreenState extends ConsumerState<DiaryScreen> {
+class _DiaryScreenState extends ConsumerState<DiaryScreen>
+    with TodayChangeScheduler<DiaryScreen> {
   late final ValueNotifier<DateTime> selectedDate;
   late String _autoTodayKey;
-  String? _pendingTodayKey;
 
   @override
   void initState() {
@@ -45,11 +46,7 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
   }
 
   void _handleTodayChanged(String nextTodayKey) {
-    if (!mounted) return;
-    if (nextTodayKey == _autoTodayKey) {
-      _pendingTodayKey = null;
-      return;
-    }
+    if (!mounted || nextTodayKey == _autoTodayKey) return;
 
     final selectedDayKey = dayKeyFromDate(selectedDate.value);
     if (selectedDayKey == _autoTodayKey) {
@@ -57,24 +54,16 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
     }
 
     _autoTodayKey = nextTodayKey;
-    _pendingTodayKey = null;
-  }
-
-  void _scheduleTodayChangeIfNeeded(String nextTodayKey) {
-    if (nextTodayKey == _autoTodayKey || nextTodayKey == _pendingTodayKey) {
-      return;
-    }
-
-    _pendingTodayKey = nextTodayKey;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handleTodayChanged(nextTodayKey);
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final currentTodayKey = ref.watch(currentDayKeyProvider);
-    _scheduleTodayChangeIfNeeded(currentTodayKey);
+    scheduleTodayChangeIfNeeded(
+      currentTodayKey: _autoTodayKey,
+      nextTodayKey: currentTodayKey,
+      onTodayChanged: _handleTodayChanged,
+    );
 
     return Scaffold(
       appBar: AppBar(

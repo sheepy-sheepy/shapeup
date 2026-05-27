@@ -1,14 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/extensions.dart';
 import '../../../core/app_ui.dart';
 import '../../../domain/repositories/products_repository.dart';
 import '../../../domain/repositories/recipes_repository.dart';
 import '../../../domain/usecases/recipe_nutrition_usecase.dart';
-import '../../widgets/csv_products_panel.dart';
+import '../../controllers/base_foods_paging_controller.dart';
+import '../../widgets/products_panel.dart';
+import '../../widgets/grams_input_content.dart';
 
 class RecipeEditorScreen extends ConsumerStatefulWidget {
   const RecipeEditorScreen({super.key, this.recipeId, this.initialName});
@@ -195,48 +194,6 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
     return null;
   }
 
-
-  Widget _gramsDialogContent(
-    TextEditingController controller,
-    StateSetter setDialogState,
-  ) {
-    const quickGrams = [50, 100, 150, 200];
-
-    void setQuickGrams(int grams) {
-      controller.text = grams.toString();
-      controller.selection = TextSelection.collapsed(
-        offset: controller.text.length,
-      );
-      setDialogState(() {});
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Граммы'),
-          onChanged: (_) => setDialogState(() {}),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            for (final grams in quickGrams)
-              ActionChip(
-                label: Text('$grams г'),
-                onPressed: () => setQuickGrams(grams),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Future<void> pickIngredient() async {
     _hideKeyboard();
 
@@ -264,7 +221,10 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Text(result.name),
-              content: _gramsDialogContent(gramsController, setDialogState),
+              content: GramsInputContent(
+                controller: gramsController,
+                setDialogState: setDialogState,
+              ),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -334,7 +294,10 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Text('Изменить граммы: ${current.name}'),
-              content: _gramsDialogContent(controller, setDialogState),
+              content: GramsInputContent(
+                controller: controller,
+                setDialogState: setDialogState,
+              ),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -478,68 +441,68 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             TextFormField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Название'),
-                  validator: Validators.requiredText,
-                ),
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Название'),
+              validator: Validators.requiredText,
+            ),
             const SizedBox(height: 16),
             TextFormField(
-                  controller: tareWeight,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Вес тары, г',
-                  ),
-                  validator: _positiveNumberValidator,
-                ),
+              controller: tareWeight,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Вес тары, г',
+              ),
+              validator: _positiveNumberValidator,
+            ),
             const SizedBox(height: 6),
             TextFormField(
-                  controller: cookedWithTareWeight,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Вес готового блюда с тарой, г',
-                  ),
-                  validator: _cookedWithTareValidator,
-                ),
+              controller: cookedWithTareWeight,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Вес готового блюда с тарой, г',
+              ),
+              validator: _cookedWithTareValidator,
+            ),
             const SizedBox(height: 12),
             if (_hasValidCookedWeight)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        kbzhuPer100Text(
-                          calories: totals.caloriesPer100,
-                          proteins: totals.proteinsPer100,
-                          fats: totals.fatsPer100,
-                          carbs: totals.carbsPer100,
-                        ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    kbzhuPer100Text(
+                      calories: totals.caloriesPer100,
+                      proteins: totals.proteinsPer100,
+                      fats: totals.fatsPer100,
+                      carbs: totals.carbsPer100,
+                    ),
+                  ),
+                ),
+              ),
+            ...items.asMap().entries.map(
+                  (entry) => ListTile(
+                    onTap: () => _editIngredientGrams(entry.key),
+                    title: Text(entry.value.name),
+                    subtitle: Text(
+                      kbzhuForGramsText(
+                        grams: entry.value.grams,
+                        caloriesPer100: entry.value.calories,
+                        proteinsPer100: entry.value.proteins,
+                        fatsPer100: entry.value.fats,
+                        carbsPer100: entry.value.carbs,
+                      ),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () => setState(
+                        () => items.removeAt(entry.key),
                       ),
                     ),
                   ),
-            ...items.asMap().entries.map(
-                      (entry) => ListTile(
-                        onTap: () => _editIngredientGrams(entry.key),
-                        title: Text(entry.value.name),
-                        subtitle: Text(
-                          kbzhuForGramsText(
-                            grams: entry.value.grams,
-                            caloriesPer100: entry.value.calories,
-                            proteinsPer100: entry.value.proteins,
-                            fatsPer100: entry.value.fats,
-                            carbsPer100: entry.value.carbs,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => setState(
-                            () => items.removeAt(entry.key),
-                          ),
-                        ),
-                      ),
-                    ),
+                ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _canSaveRecipe ? save : null,
@@ -580,170 +543,50 @@ class _FoodPickerScreen extends ConsumerStatefulWidget {
 }
 
 class _FoodPickerScreenState extends ConsumerState<_FoodPickerScreen> {
-  static const int _foodsPageSize = 150;
-
   final query = TextEditingController();
   final scrollController = ScrollController();
 
-  Timer? _searchDebounce;
-
-  String _searchText = '';
-
+  late final BaseFoodsPagingController foodsController;
   late Future<List<CustomProduct>> _customFuture;
-
-  List<Food> foods = [];
-  bool foodsLoading = true;
-  bool foodsHasMore = true;
-  int foodsOffset = 0;
-  String foodsQueryToken = '';
-  String? foodsErrorText;
 
   @override
   void initState() {
     super.initState();
 
-    query.addListener(_onSearchChanged);
-    scrollController.addListener(_onScroll);
+    foodsController = BaseFoodsPagingController(
+      productsRepository: ref.read(productsRepositoryProvider),
+    );
+
+    foodsController.bind(
+      queryController: query,
+      scrollController: scrollController,
+      onFoodsChanged: () {
+        if (!mounted) return;
+        setState(() {});
+      },
+      onSearchAccepted: () {
+        _customFuture = _loadCustomProducts();
+      },
+    );
 
     _customFuture = _loadCustomProducts();
-
-    foodsQueryToken = _searchText;
-    _loadFoodsPage(
-      query: foodsQueryToken,
-      offset: 0,
-      replace: true,
-      loadingAlreadySet: true,
-    );
+    foodsController.start();
   }
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
+    foodsController.dispose();
 
-    query.removeListener(_onSearchChanged);
     query.dispose();
-
-    scrollController.removeListener(_onScroll);
     scrollController.dispose();
 
     super.dispose();
   }
 
   Future<List<CustomProduct>> _loadCustomProducts() {
-    return ref.read(productsRepositoryProvider).customProducts(_searchText);
-  }
-
-  void _onSearchChanged() {
-    _searchDebounce?.cancel();
-
-    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
-      final next = query.text.trim();
-
-      if (next == _searchText) return;
-      if (!mounted) return;
-
-      setState(() {
-        _searchText = next;
-        _customFuture = _loadCustomProducts();
-
-        foods = [];
-        foodsOffset = 0;
-        foodsHasMore = true;
-        foodsLoading = true;
-        foodsErrorText = null;
-        foodsQueryToken = next;
-      });
-
-      if (scrollController.hasClients) {
-        scrollController.jumpTo(0);
-      }
-
-      _loadFoodsPage(
-        query: next,
-        offset: 0,
-        replace: true,
-        loadingAlreadySet: true,
-      );
-    });
-  }
-
-  void _onScroll() {
-    if (!scrollController.hasClients) return;
-    if (foodsLoading || !foodsHasMore) return;
-
-    final position = scrollController.position;
-    final remaining = position.maxScrollExtent - position.pixels;
-
-    if (remaining < 500) {
-      _loadNextFoodsPage();
-    }
-  }
-
-  Future<void> _loadNextFoodsPage() async {
-    if (foodsLoading || !foodsHasMore) return;
-
-    await _loadFoodsPage(
-      query: foodsQueryToken,
-      offset: foodsOffset,
-      replace: false,
-    );
-  }
-
-  Future<void> _loadFoodsPage({
-    required String query,
-    required int offset,
-    required bool replace,
-    bool loadingAlreadySet = false,
-  }) async {
-    if (!loadingAlreadySet) {
-      if (!mounted) return;
-
-      setState(() {
-        foodsLoading = true;
-        foodsErrorText = null;
-      });
-    }
-
-    try {
-      final loaded = await ref.read(productsRepositoryProvider).baseFoodsPage(
-            query,
-            offset: offset,
-            limit: _foodsPageSize,
-          );
-
-      if (!mounted || query != foodsQueryToken) return;
-
-      setState(() {
-        if (replace) {
-          foods = loaded;
-          foodsOffset = loaded.length;
-        } else {
-          final existingIds = foods.map((e) => e.id).toSet();
-
-          final uniqueLoaded = loaded.where((e) {
-            if (existingIds.contains(e.id)) return false;
-            existingIds.add(e.id);
-            return true;
-          }).toList();
-
-          foods = [...foods, ...uniqueLoaded];
-
-          foodsOffset += loaded.length;
-        }
-
-        foodsHasMore = loaded.length == _foodsPageSize;
-        foodsLoading = false;
-        foodsErrorText = null;
-      });
-    } catch (e) {
-      if (!mounted || query != foodsQueryToken) return;
-
-      setState(() {
-        foodsLoading = false;
-        foodsHasMore = false;
-        foodsErrorText = e.toString();
-      });
-    }
+    return ref
+        .read(productsRepositoryProvider)
+        .customProducts(foodsController.searchText);
   }
 
   void _popCustomProduct(CustomProduct product) {
@@ -782,6 +625,11 @@ class _FoodPickerScreenState extends ConsumerState<_FoodPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final foods = foodsController.foods;
+    final foodsLoading = foodsController.foodsLoading;
+    final foodsHasMore = foodsController.foodsHasMore;
+    final foodsErrorText = foodsController.foodsErrorText;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Выбрать продукт'),
@@ -806,22 +654,16 @@ class _FoodPickerScreenState extends ConsumerState<_FoodPickerScreen> {
                   children: [
                     CustomProductsPanel(
                       children: [
-                        if (snapshot.connectionState == ConnectionState.waiting &&
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
                             !snapshot.hasData)
-                          const ListTile(title: Text('Загружаем свои продукты...')),
+                          const ListTile(
+                              title: Text('Загружаем свои продукты...')),
                         if (snapshot.hasData && custom.isEmpty)
                           const ListTile(title: Text('Нет своих продуктов')),
                         ...custom.map(
-                          (e) => ListTile(
-                            title: CustomProductNameLabel(name: e.name),
-                            subtitle: Text(
-                              kbzhuPer100Text(
-                                calories: e.calories,
-                                proteins: e.proteins,
-                                fats: e.fats,
-                                carbs: e.carbs,
-                              ),
-                            ),
+                          (e) => CustomProductTile(
+                            product: e,
                             onTap: () => _popCustomProduct(e),
                           ),
                         ),
@@ -832,21 +674,13 @@ class _FoodPickerScreenState extends ConsumerState<_FoodPickerScreen> {
                         if (foodsErrorText != null)
                           ListTile(
                             title: const Text('Ошибка загрузки базы продуктов'),
-                            subtitle: Text(foodsErrorText!),
+                            subtitle: Text(foodsErrorText),
                           ),
                         if (foods.isEmpty && !foodsLoading)
                           const ListTile(title: Text('Ничего не найдено')),
                         ...foods.map(
-                          (e) => ListTile(
-                            title: CsvFoodNameLabel(name: e.name),
-                            subtitle: Text(
-                              kbzhuPer100Text(
-                                calories: e.calories,
-                                proteins: e.proteins,
-                                fats: e.fats,
-                                carbs: e.carbs,
-                              ),
-                            ),
+                          (e) => CsvFoodTile(
+                            food: e,
                             onTap: () => _popFood(e),
                           ),
                         ),
@@ -856,7 +690,7 @@ class _FoodPickerScreenState extends ConsumerState<_FoodPickerScreen> {
                             child: Center(child: CircularProgressIndicator()),
                           ),
                         if (!foodsLoading && foodsHasMore)
-                      const SizedBox(height: 16),
+                          const SizedBox(height: 16),
                       ],
                     ),
                   ],

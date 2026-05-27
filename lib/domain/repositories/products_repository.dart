@@ -15,7 +15,6 @@ abstract class ProductsRepository {
     required int offset,
     int limit = 150,
   });
-  Future<List<Food>> baseFoods(String query);
   Future<void> createProduct({
     required String name,
     required double calories,

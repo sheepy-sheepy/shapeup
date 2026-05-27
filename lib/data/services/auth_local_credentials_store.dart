@@ -87,8 +87,7 @@ class AuthLocalCredentialsStore {
     required String email,
     required String password,
   }) {
-    final source =
-        'nutrition_app_local_auth_v1|${normalizeEmail(email)}|$password';
+    final source = 'shapeup_local_auth ${normalizeEmail(email)}|$password';
     const int fnvPrime = 0x01000193;
     var hash = 0x811c9dc5;
 

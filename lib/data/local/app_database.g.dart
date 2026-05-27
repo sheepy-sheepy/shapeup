@@ -1551,15 +1551,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
   final String id;
   final String userId;
   final String name;
-
-  /// Вес тары для приготовления.
-  ///
-  /// Например: сотейник = 1600 г.
   final double tareWeightGrams;
-
-  /// Вес готового блюда вместе с тарой.
-  ///
-  /// Например: готовое блюдо с сотейником = 2720 г.
   final double cookedWithTareWeightGrams;
   final bool deleted;
   final DateTime updatedAt;
@@ -2016,11 +2008,7 @@ class RecipeIngredient extends DataClass
   final String sourceType;
   final String sourceId;
   final String nameSnapshot;
-
-  /// Вес ингредиента в сыром виде.
   final double grams;
-
-  /// КБЖУ ингредиента на 100 г в сыром виде.
   final double caloriesSnapshot;
   final double proteinsSnapshot;
   final double fatsSnapshot;
@@ -2403,26 +2391,9 @@ class $BodyMeasurementsTable extends BodyMeasurements
   late final GeneratedColumn<double> bodyFatPercent = GeneratedColumn<double>(
       'body_fat_percent', aliasedName, false,
       type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _updatedAtMeta =
-      const VerificationMeta('updatedAt');
   @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-      'updated_at', aliasedName, false,
-      type: DriftSqlType.dateTime,
-      requiredDuringInsert: false,
-      defaultValue: currentDateAndTime);
-  @override
-  List<GeneratedColumn> get $columns => [
-        id,
-        userId,
-        dayKey,
-        weightKg,
-        neckCm,
-        waistCm,
-        hipsCm,
-        bodyFatPercent,
-        updatedAt
-      ];
+  List<GeneratedColumn> get $columns =>
+      [id, userId, dayKey, weightKg, neckCm, waistCm, hipsCm, bodyFatPercent];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2482,10 +2453,6 @@ class $BodyMeasurementsTable extends BodyMeasurements
     } else if (isInserting) {
       context.missing(_bodyFatPercentMeta);
     }
-    if (data.containsKey('updated_at')) {
-      context.handle(_updatedAtMeta,
-          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
-    }
     return context;
   }
 
@@ -2515,8 +2482,6 @@ class $BodyMeasurementsTable extends BodyMeasurements
           .read(DriftSqlType.double, data['${effectivePrefix}hips_cm'])!,
       bodyFatPercent: attachedDatabase.typeMapping.read(
           DriftSqlType.double, data['${effectivePrefix}body_fat_percent'])!,
-      updatedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
   }
 
@@ -2535,7 +2500,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
   final double waistCm;
   final double hipsCm;
   final double bodyFatPercent;
-  final DateTime updatedAt;
   const BodyMeasurement(
       {required this.id,
       required this.userId,
@@ -2544,8 +2508,7 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
       required this.neckCm,
       required this.waistCm,
       required this.hipsCm,
-      required this.bodyFatPercent,
-      required this.updatedAt});
+      required this.bodyFatPercent});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2557,7 +2520,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
     map['waist_cm'] = Variable<double>(waistCm);
     map['hips_cm'] = Variable<double>(hipsCm);
     map['body_fat_percent'] = Variable<double>(bodyFatPercent);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
@@ -2571,7 +2533,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
       waistCm: Value(waistCm),
       hipsCm: Value(hipsCm),
       bodyFatPercent: Value(bodyFatPercent),
-      updatedAt: Value(updatedAt),
     );
   }
 
@@ -2587,7 +2548,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
       waistCm: serializer.fromJson<double>(json['waistCm']),
       hipsCm: serializer.fromJson<double>(json['hipsCm']),
       bodyFatPercent: serializer.fromJson<double>(json['bodyFatPercent']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -2602,7 +2562,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
       'waistCm': serializer.toJson<double>(waistCm),
       'hipsCm': serializer.toJson<double>(hipsCm),
       'bodyFatPercent': serializer.toJson<double>(bodyFatPercent),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
@@ -2614,8 +2573,7 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
           double? neckCm,
           double? waistCm,
           double? hipsCm,
-          double? bodyFatPercent,
-          DateTime? updatedAt}) =>
+          double? bodyFatPercent}) =>
       BodyMeasurement(
         id: id ?? this.id,
         userId: userId ?? this.userId,
@@ -2625,7 +2583,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
         waistCm: waistCm ?? this.waistCm,
         hipsCm: hipsCm ?? this.hipsCm,
         bodyFatPercent: bodyFatPercent ?? this.bodyFatPercent,
-        updatedAt: updatedAt ?? this.updatedAt,
       );
   BodyMeasurement copyWithCompanion(BodyMeasurementsCompanion data) {
     return BodyMeasurement(
@@ -2639,7 +2596,6 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
       bodyFatPercent: data.bodyFatPercent.present
           ? data.bodyFatPercent.value
           : this.bodyFatPercent,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -2653,15 +2609,14 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
           ..write('neckCm: $neckCm, ')
           ..write('waistCm: $waistCm, ')
           ..write('hipsCm: $hipsCm, ')
-          ..write('bodyFatPercent: $bodyFatPercent, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('bodyFatPercent: $bodyFatPercent')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, userId, dayKey, weightKg, neckCm, waistCm,
-      hipsCm, bodyFatPercent, updatedAt);
+  int get hashCode => Object.hash(
+      id, userId, dayKey, weightKg, neckCm, waistCm, hipsCm, bodyFatPercent);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2673,8 +2628,7 @@ class BodyMeasurement extends DataClass implements Insertable<BodyMeasurement> {
           other.neckCm == this.neckCm &&
           other.waistCm == this.waistCm &&
           other.hipsCm == this.hipsCm &&
-          other.bodyFatPercent == this.bodyFatPercent &&
-          other.updatedAt == this.updatedAt);
+          other.bodyFatPercent == this.bodyFatPercent);
 }
 
 class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
@@ -2686,7 +2640,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
   final Value<double> waistCm;
   final Value<double> hipsCm;
   final Value<double> bodyFatPercent;
-  final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const BodyMeasurementsCompanion({
     this.id = const Value.absent(),
@@ -2697,7 +2650,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
     this.waistCm = const Value.absent(),
     this.hipsCm = const Value.absent(),
     this.bodyFatPercent = const Value.absent(),
-    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BodyMeasurementsCompanion.insert({
@@ -2709,7 +2661,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
     required double waistCm,
     required double hipsCm,
     required double bodyFatPercent,
-    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         userId = Value(userId),
@@ -2728,7 +2679,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
     Expression<double>? waistCm,
     Expression<double>? hipsCm,
     Expression<double>? bodyFatPercent,
-    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2740,7 +2690,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
       if (waistCm != null) 'waist_cm': waistCm,
       if (hipsCm != null) 'hips_cm': hipsCm,
       if (bodyFatPercent != null) 'body_fat_percent': bodyFatPercent,
-      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2754,7 +2703,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
       Value<double>? waistCm,
       Value<double>? hipsCm,
       Value<double>? bodyFatPercent,
-      Value<DateTime>? updatedAt,
       Value<int>? rowid}) {
     return BodyMeasurementsCompanion(
       id: id ?? this.id,
@@ -2765,7 +2713,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
       waistCm: waistCm ?? this.waistCm,
       hipsCm: hipsCm ?? this.hipsCm,
       bodyFatPercent: bodyFatPercent ?? this.bodyFatPercent,
-      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2797,9 +2744,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
     if (bodyFatPercent.present) {
       map['body_fat_percent'] = Variable<double>(bodyFatPercent.value);
     }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2817,7 +2761,6 @@ class BodyMeasurementsCompanion extends UpdateCompanion<BodyMeasurement> {
           ..write('waistCm: $waistCm, ')
           ..write('hipsCm: $hipsCm, ')
           ..write('bodyFatPercent: $bodyFatPercent, ')
-          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3655,11 +3598,6 @@ class MealItem extends DataClass implements Insertable<MealItem> {
   final double proteinsSnapshot;
   final double fatsSnapshot;
   final double carbsSnapshot;
-
-  /// Время добавления продукта/рецепта в прием пищи.
-  ///
-  /// Нужно, чтобы при повторном добавлении продукта автоматически подставлялось
-  /// именно последнее введенное количество грамм, а не первое.
   final DateTime createdAt;
   const MealItem(
       {required this.id,
@@ -4044,23 +3982,8 @@ class $ProgressPhotosTable extends ProgressPhotos
   late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
       'local_path', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _remoteObjectPathMeta =
-      const VerificationMeta('remoteObjectPath');
   @override
-  late final GeneratedColumn<String> remoteObjectPath = GeneratedColumn<String>(
-      'remote_object_path', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _updatedAtMeta =
-      const VerificationMeta('updatedAt');
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-      'updated_at', aliasedName, false,
-      type: DriftSqlType.dateTime,
-      requiredDuringInsert: false,
-      defaultValue: currentDateAndTime);
-  @override
-  List<GeneratedColumn> get $columns =>
-      [id, userId, dayKey, slot, localPath, remoteObjectPath, updatedAt];
+  List<GeneratedColumn> get $columns => [id, userId, dayKey, slot, localPath];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4100,16 +4023,6 @@ class $ProgressPhotosTable extends ProgressPhotos
     } else if (isInserting) {
       context.missing(_localPathMeta);
     }
-    if (data.containsKey('remote_object_path')) {
-      context.handle(
-          _remoteObjectPathMeta,
-          remoteObjectPath.isAcceptableOrUnknown(
-              data['remote_object_path']!, _remoteObjectPathMeta));
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(_updatedAtMeta,
-          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
-    }
     return context;
   }
 
@@ -4129,10 +4042,6 @@ class $ProgressPhotosTable extends ProgressPhotos
           .read(DriftSqlType.int, data['${effectivePrefix}slot'])!,
       localPath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}local_path'])!,
-      remoteObjectPath: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}remote_object_path']),
-      updatedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
   }
 
@@ -4148,16 +4057,12 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
   final String dayKey;
   final int slot;
   final String localPath;
-  final String? remoteObjectPath;
-  final DateTime updatedAt;
   const ProgressPhoto(
       {required this.id,
       required this.userId,
       required this.dayKey,
       required this.slot,
-      required this.localPath,
-      this.remoteObjectPath,
-      required this.updatedAt});
+      required this.localPath});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4166,10 +4071,6 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
     map['day_key'] = Variable<String>(dayKey);
     map['slot'] = Variable<int>(slot);
     map['local_path'] = Variable<String>(localPath);
-    if (!nullToAbsent || remoteObjectPath != null) {
-      map['remote_object_path'] = Variable<String>(remoteObjectPath);
-    }
-    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
@@ -4180,10 +4081,6 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
       dayKey: Value(dayKey),
       slot: Value(slot),
       localPath: Value(localPath),
-      remoteObjectPath: remoteObjectPath == null && nullToAbsent
-          ? const Value.absent()
-          : Value(remoteObjectPath),
-      updatedAt: Value(updatedAt),
     );
   }
 
@@ -4196,8 +4093,6 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
       dayKey: serializer.fromJson<String>(json['dayKey']),
       slot: serializer.fromJson<int>(json['slot']),
       localPath: serializer.fromJson<String>(json['localPath']),
-      remoteObjectPath: serializer.fromJson<String?>(json['remoteObjectPath']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -4209,8 +4104,6 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
       'dayKey': serializer.toJson<String>(dayKey),
       'slot': serializer.toJson<int>(slot),
       'localPath': serializer.toJson<String>(localPath),
-      'remoteObjectPath': serializer.toJson<String?>(remoteObjectPath),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
@@ -4219,19 +4112,13 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
           String? userId,
           String? dayKey,
           int? slot,
-          String? localPath,
-          Value<String?> remoteObjectPath = const Value.absent(),
-          DateTime? updatedAt}) =>
+          String? localPath}) =>
       ProgressPhoto(
         id: id ?? this.id,
         userId: userId ?? this.userId,
         dayKey: dayKey ?? this.dayKey,
         slot: slot ?? this.slot,
         localPath: localPath ?? this.localPath,
-        remoteObjectPath: remoteObjectPath.present
-            ? remoteObjectPath.value
-            : this.remoteObjectPath,
-        updatedAt: updatedAt ?? this.updatedAt,
       );
   ProgressPhoto copyWithCompanion(ProgressPhotosCompanion data) {
     return ProgressPhoto(
@@ -4240,10 +4127,6 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
       dayKey: data.dayKey.present ? data.dayKey.value : this.dayKey,
       slot: data.slot.present ? data.slot.value : this.slot,
       localPath: data.localPath.present ? data.localPath.value : this.localPath,
-      remoteObjectPath: data.remoteObjectPath.present
-          ? data.remoteObjectPath.value
-          : this.remoteObjectPath,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -4254,16 +4137,13 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
           ..write('userId: $userId, ')
           ..write('dayKey: $dayKey, ')
           ..write('slot: $slot, ')
-          ..write('localPath: $localPath, ')
-          ..write('remoteObjectPath: $remoteObjectPath, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('localPath: $localPath')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, userId, dayKey, slot, localPath, remoteObjectPath, updatedAt);
+  int get hashCode => Object.hash(id, userId, dayKey, slot, localPath);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4272,9 +4152,7 @@ class ProgressPhoto extends DataClass implements Insertable<ProgressPhoto> {
           other.userId == this.userId &&
           other.dayKey == this.dayKey &&
           other.slot == this.slot &&
-          other.localPath == this.localPath &&
-          other.remoteObjectPath == this.remoteObjectPath &&
-          other.updatedAt == this.updatedAt);
+          other.localPath == this.localPath);
 }
 
 class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
@@ -4283,8 +4161,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
   final Value<String> dayKey;
   final Value<int> slot;
   final Value<String> localPath;
-  final Value<String?> remoteObjectPath;
-  final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const ProgressPhotosCompanion({
     this.id = const Value.absent(),
@@ -4292,8 +4168,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
     this.dayKey = const Value.absent(),
     this.slot = const Value.absent(),
     this.localPath = const Value.absent(),
-    this.remoteObjectPath = const Value.absent(),
-    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProgressPhotosCompanion.insert({
@@ -4302,8 +4176,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
     required String dayKey,
     required int slot,
     required String localPath,
-    this.remoteObjectPath = const Value.absent(),
-    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         userId = Value(userId),
@@ -4316,8 +4188,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
     Expression<String>? dayKey,
     Expression<int>? slot,
     Expression<String>? localPath,
-    Expression<String>? remoteObjectPath,
-    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4326,8 +4196,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
       if (dayKey != null) 'day_key': dayKey,
       if (slot != null) 'slot': slot,
       if (localPath != null) 'local_path': localPath,
-      if (remoteObjectPath != null) 'remote_object_path': remoteObjectPath,
-      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4338,8 +4206,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
       Value<String>? dayKey,
       Value<int>? slot,
       Value<String>? localPath,
-      Value<String?>? remoteObjectPath,
-      Value<DateTime>? updatedAt,
       Value<int>? rowid}) {
     return ProgressPhotosCompanion(
       id: id ?? this.id,
@@ -4347,8 +4213,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
       dayKey: dayKey ?? this.dayKey,
       slot: slot ?? this.slot,
       localPath: localPath ?? this.localPath,
-      remoteObjectPath: remoteObjectPath ?? this.remoteObjectPath,
-      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4371,12 +4235,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
     if (localPath.present) {
       map['local_path'] = Variable<String>(localPath.value);
     }
-    if (remoteObjectPath.present) {
-      map['remote_object_path'] = Variable<String>(remoteObjectPath.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4391,8 +4249,6 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
           ..write('dayKey: $dayKey, ')
           ..write('slot: $slot, ')
           ..write('localPath: $localPath, ')
-          ..write('remoteObjectPath: $remoteObjectPath, ')
-          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4401,6 +4257,7 @@ class ProgressPhotosCompanion extends UpdateCompanion<ProgressPhoto> {
 
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
+  $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $LocalUsersTable localUsers = $LocalUsersTable(this);
   late final $FoodsTable foods = $FoodsTable(this);
   late final $CustomProductsTable customProducts = $CustomProductsTable(this);
@@ -5583,7 +5440,6 @@ typedef $$BodyMeasurementsTableCreateCompanionBuilder
   required double waistCm,
   required double hipsCm,
   required double bodyFatPercent,
-  Value<DateTime> updatedAt,
   Value<int> rowid,
 });
 typedef $$BodyMeasurementsTableUpdateCompanionBuilder
@@ -5596,7 +5452,6 @@ typedef $$BodyMeasurementsTableUpdateCompanionBuilder
   Value<double> waistCm,
   Value<double> hipsCm,
   Value<double> bodyFatPercent,
-  Value<DateTime> updatedAt,
   Value<int> rowid,
 });
 
@@ -5633,9 +5488,6 @@ class $$BodyMeasurementsTableFilterComposer
   ColumnFilters<double> get bodyFatPercent => $composableBuilder(
       column: $table.bodyFatPercent,
       builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$BodyMeasurementsTableOrderingComposer
@@ -5671,9 +5523,6 @@ class $$BodyMeasurementsTableOrderingComposer
   ColumnOrderings<double> get bodyFatPercent => $composableBuilder(
       column: $table.bodyFatPercent,
       builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$BodyMeasurementsTableAnnotationComposer
@@ -5708,9 +5557,6 @@ class $$BodyMeasurementsTableAnnotationComposer
 
   GeneratedColumn<double> get bodyFatPercent => $composableBuilder(
       column: $table.bodyFatPercent, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$BodyMeasurementsTableTableManager extends RootTableManager<
@@ -5748,7 +5594,6 @@ class $$BodyMeasurementsTableTableManager extends RootTableManager<
             Value<double> waistCm = const Value.absent(),
             Value<double> hipsCm = const Value.absent(),
             Value<double> bodyFatPercent = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               BodyMeasurementsCompanion(
@@ -5760,7 +5605,6 @@ class $$BodyMeasurementsTableTableManager extends RootTableManager<
             waistCm: waistCm,
             hipsCm: hipsCm,
             bodyFatPercent: bodyFatPercent,
-            updatedAt: updatedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -5772,7 +5616,6 @@ class $$BodyMeasurementsTableTableManager extends RootTableManager<
             required double waistCm,
             required double hipsCm,
             required double bodyFatPercent,
-            Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               BodyMeasurementsCompanion.insert(
@@ -5784,7 +5627,6 @@ class $$BodyMeasurementsTableTableManager extends RootTableManager<
             waistCm: waistCm,
             hipsCm: hipsCm,
             bodyFatPercent: bodyFatPercent,
-            updatedAt: updatedAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6407,8 +6249,6 @@ typedef $$ProgressPhotosTableCreateCompanionBuilder = ProgressPhotosCompanion
   required String dayKey,
   required int slot,
   required String localPath,
-  Value<String?> remoteObjectPath,
-  Value<DateTime> updatedAt,
   Value<int> rowid,
 });
 typedef $$ProgressPhotosTableUpdateCompanionBuilder = ProgressPhotosCompanion
@@ -6418,8 +6258,6 @@ typedef $$ProgressPhotosTableUpdateCompanionBuilder = ProgressPhotosCompanion
   Value<String> dayKey,
   Value<int> slot,
   Value<String> localPath,
-  Value<String?> remoteObjectPath,
-  Value<DateTime> updatedAt,
   Value<int> rowid,
 });
 
@@ -6446,13 +6284,6 @@ class $$ProgressPhotosTableFilterComposer
 
   ColumnFilters<String> get localPath => $composableBuilder(
       column: $table.localPath, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get remoteObjectPath => $composableBuilder(
-      column: $table.remoteObjectPath,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$ProgressPhotosTableOrderingComposer
@@ -6478,13 +6309,6 @@ class $$ProgressPhotosTableOrderingComposer
 
   ColumnOrderings<String> get localPath => $composableBuilder(
       column: $table.localPath, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get remoteObjectPath => $composableBuilder(
-      column: $table.remoteObjectPath,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ProgressPhotosTableAnnotationComposer
@@ -6510,12 +6334,6 @@ class $$ProgressPhotosTableAnnotationComposer
 
   GeneratedColumn<String> get localPath =>
       $composableBuilder(column: $table.localPath, builder: (column) => column);
-
-  GeneratedColumn<String> get remoteObjectPath => $composableBuilder(
-      column: $table.remoteObjectPath, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$ProgressPhotosTableTableManager extends RootTableManager<
@@ -6550,8 +6368,6 @@ class $$ProgressPhotosTableTableManager extends RootTableManager<
             Value<String> dayKey = const Value.absent(),
             Value<int> slot = const Value.absent(),
             Value<String> localPath = const Value.absent(),
-            Value<String?> remoteObjectPath = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProgressPhotosCompanion(
@@ -6560,8 +6376,6 @@ class $$ProgressPhotosTableTableManager extends RootTableManager<
             dayKey: dayKey,
             slot: slot,
             localPath: localPath,
-            remoteObjectPath: remoteObjectPath,
-            updatedAt: updatedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -6570,8 +6384,6 @@ class $$ProgressPhotosTableTableManager extends RootTableManager<
             required String dayKey,
             required int slot,
             required String localPath,
-            Value<String?> remoteObjectPath = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProgressPhotosCompanion.insert(
@@ -6580,8 +6392,6 @@ class $$ProgressPhotosTableTableManager extends RootTableManager<
             dayKey: dayKey,
             slot: slot,
             localPath: localPath,
-            remoteObjectPath: remoteObjectPath,
-            updatedAt: updatedAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6606,3 +6416,28 @@ typedef $$ProgressPhotosTableProcessedTableManager = ProcessedTableManager<
     ),
     ProgressPhoto,
     PrefetchHooks Function()>;
+
+class $AppDatabaseManager {
+  final _$AppDatabase _db;
+  $AppDatabaseManager(this._db);
+  $$LocalUsersTableTableManager get localUsers =>
+      $$LocalUsersTableTableManager(_db, _db.localUsers);
+  $$FoodsTableTableManager get foods =>
+      $$FoodsTableTableManager(_db, _db.foods);
+  $$CustomProductsTableTableManager get customProducts =>
+      $$CustomProductsTableTableManager(_db, _db.customProducts);
+  $$RecipesTableTableManager get recipes =>
+      $$RecipesTableTableManager(_db, _db.recipes);
+  $$RecipeIngredientsTableTableManager get recipeIngredients =>
+      $$RecipeIngredientsTableTableManager(_db, _db.recipeIngredients);
+  $$BodyMeasurementsTableTableManager get bodyMeasurements =>
+      $$BodyMeasurementsTableTableManager(_db, _db.bodyMeasurements);
+  $$DiaryDaysTableTableManager get diaryDays =>
+      $$DiaryDaysTableTableManager(_db, _db.diaryDays);
+  $$MealsTableTableManager get meals =>
+      $$MealsTableTableManager(_db, _db.meals);
+  $$MealItemsTableTableManager get mealItems =>
+      $$MealItemsTableTableManager(_db, _db.mealItems);
+  $$ProgressPhotosTableTableManager get progressPhotos =>
+      $$ProgressPhotosTableTableManager(_db, _db.progressPhotos);
+}

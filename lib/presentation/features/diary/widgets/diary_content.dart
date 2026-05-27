@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../../core/date_utils.dart';
-import '../../../../domain/entities/local_entities.dart';
 import '../../../../domain/services/nutrition_calculator.dart';
+import '../../../../domain/entities/local_entities.dart';
 import '../../../../domain/usecases/diary_day_loader.dart';
 import '../../../state/app_refresh.dart';
 import 'diary_summary_section.dart';
@@ -24,7 +23,6 @@ class DiaryContent extends ConsumerStatefulWidget {
 class _DiaryContentState extends ConsumerState<DiaryContent> {
   final waterAmountController = TextEditingController(text: '250');
 
-  /// Обновляет только карточку "Норма на день".
   final ValueNotifier<int> totalsRefreshTick = ValueNotifier<int>(0);
 
   String? _dayKey;
@@ -106,9 +104,6 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
         _errorText = null;
       });
     } else {
-      // ВАЖНО:
-      // При переключении дат не включаем общий loader.
-      // Старый экран остается на месте до тихой подмены данных.
       setState(() {
         _errorText = null;
       });
@@ -127,7 +122,6 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
         _errorText = null;
       });
 
-      // Обновляем только цифры нормы после смены даты.
       totalsRefreshTick.value++;
     } catch (e) {
       if (!mounted || serial != _loadSerial) return;
@@ -173,9 +167,6 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
       padding: const EdgeInsets.all(16),
       children: [
         DiarySummarySection(
-          // ВАЖНО:
-          // Не ставим ValueKey с dayKey, чтобы карточка нормы и воды
-          // не уничтожалась при переключении даты.
           dayKey: dayKey,
           norms: _norms,
           waterAmountController: waterAmountController,
@@ -183,9 +174,6 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
         ),
         ..._meals.map(
           (meal) => MealCard(
-            // ВАЖНО:
-            // Ключ стабильный по типу приема пищи.
-            // Так Flutter не пересоздает карточку при смене дня.
             key: PageStorageKey<String>('meal_${meal.mealType}'),
             meal: meal,
             dayKey: dayKey,

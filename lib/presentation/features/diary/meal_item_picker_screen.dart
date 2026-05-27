@@ -1,15 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/extensions.dart';
 import '../../../core/app_ui.dart';
 import '../../../domain/entities/local_entities.dart';
 import '../../../domain/repositories/products_repository.dart';
 import '../../../domain/repositories/recipes_repository.dart';
+import '../../services/recipe_search_service.dart';
 import '../../../domain/usecases/recipe_nutrition_usecase.dart';
-import '../../widgets/csv_products_panel.dart';
+import '../../controllers/base_foods_paging_controller.dart';
+import '../../widgets/products_panel.dart';
 
 class PickedMealSource {
   final String id;
@@ -40,222 +39,65 @@ class MealItemPickerScreen extends ConsumerStatefulWidget {
 }
 
 class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
-  static const int _foodsPageSize = 150;
-
   final query = TextEditingController();
   final scrollController = ScrollController();
   final Map<String, Future<PickedMealSource>> _recipeSourceFutures = {};
 
-  Timer? _searchDebounce;
-  String _searchText = '';
-
+  late final BaseFoodsPagingController foodsController;
   late Future<_MealPickerStaticData> _staticFuture;
-
-  List<Food> foods = [];
-  bool foodsLoading = true;
-  bool foodsHasMore = true;
-  int foodsOffset = 0;
-  String foodsQueryToken = '';
-  String? foodsErrorText;
 
   @override
   void initState() {
     super.initState();
 
-    query.addListener(_onSearchChanged);
-    scrollController.addListener(_onScroll);
+    foodsController = BaseFoodsPagingController(
+      productsRepository: ref.read(productsRepositoryProvider),
+    );
+
+    foodsController.bind(
+      queryController: query,
+      scrollController: scrollController,
+      onFoodsChanged: () {
+        if (!mounted) return;
+        setState(() {});
+      },
+      onSearchAccepted: () {
+        _staticFuture = _loadStaticData();
+        _recipeSourceFutures.clear();
+      },
+    );
 
     _staticFuture = _loadStaticData();
-
-    foodsQueryToken = _searchText;
-    _loadFoodsPage(
-      query: foodsQueryToken,
-      offset: 0,
-      replace: true,
-      loadingAlreadySet: true,
-    );
+    foodsController.start();
   }
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
+    foodsController.dispose();
 
-    query.removeListener(_onSearchChanged);
     query.dispose();
-
-    scrollController.removeListener(_onScroll);
     scrollController.dispose();
 
     super.dispose();
-  }
-
-  String _normalizeSearch(String value) {
-    return value.trim().toLowerCase();
-  }
-
-  List<Recipe> _filterAndSortRecipesBySearch(
-    List<Recipe> recipes,
-    String query,
-  ) {
-    final q = _normalizeSearch(query);
-
-    if (q.isEmpty) {
-      return recipes;
-    }
-
-    final startsWith = <Recipe>[];
-    final contains = <Recipe>[];
-
-    for (final recipe in recipes) {
-      final name = _normalizeSearch(recipe.name);
-
-      if (name.startsWith(q)) {
-        startsWith.add(recipe);
-      } else if (name.contains(q)) {
-        contains.add(recipe);
-      }
-    }
-
-    startsWith.sort(
-      (a, b) => _normalizeSearch(a.name).compareTo(_normalizeSearch(b.name)),
-    );
-
-    contains.sort(
-      (a, b) => _normalizeSearch(a.name).compareTo(_normalizeSearch(b.name)),
-    );
-
-    return [
-      ...startsWith,
-      ...contains,
-    ];
   }
 
   Future<_MealPickerStaticData> _loadStaticData() async {
     final productsRepo = ref.read(productsRepositoryProvider);
     final recipesRepo = ref.read(recipesRepositoryProvider);
 
-    final custom = await productsRepo.customProducts(_searchText);
+    final custom =
+        await productsRepo.customProducts(foodsController.searchText);
 
     final allRecipes = await recipesRepo.recipes('');
-    final recipes = _filterAndSortRecipesBySearch(allRecipes, _searchText);
+    final recipes = RecipeSearchService.filterAndSortBySearch(
+      allRecipes,
+      foodsController.searchText,
+    );
 
     return _MealPickerStaticData(
       customProducts: custom,
       recipes: recipes,
     );
-  }
-
-  void _onSearchChanged() {
-    _searchDebounce?.cancel();
-
-    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
-      final next = query.text.trim();
-
-      if (next == _searchText) return;
-      if (!mounted) return;
-
-      setState(() {
-        _searchText = next;
-        _staticFuture = _loadStaticData();
-        _recipeSourceFutures.clear();
-
-        foods = [];
-        foodsOffset = 0;
-        foodsHasMore = true;
-        foodsLoading = true;
-        foodsErrorText = null;
-        foodsQueryToken = next;
-      });
-
-      if (scrollController.hasClients) {
-        scrollController.jumpTo(0);
-      }
-
-      _loadFoodsPage(
-        query: next,
-        offset: 0,
-        replace: true,
-        loadingAlreadySet: true,
-      );
-    });
-  }
-
-  void _onScroll() {
-    if (!scrollController.hasClients) return;
-    if (foodsLoading || !foodsHasMore) return;
-
-    final position = scrollController.position;
-    final remaining = position.maxScrollExtent - position.pixels;
-
-    if (remaining < 500) {
-      _loadNextFoodsPage();
-    }
-  }
-
-  Future<void> _loadNextFoodsPage() async {
-    if (foodsLoading || !foodsHasMore) return;
-
-    await _loadFoodsPage(
-      query: foodsQueryToken,
-      offset: foodsOffset,
-      replace: false,
-    );
-  }
-
-  Future<void> _loadFoodsPage({
-    required String query,
-    required int offset,
-    required bool replace,
-    bool loadingAlreadySet = false,
-  }) async {
-    if (!loadingAlreadySet) {
-      if (!mounted) return;
-
-      setState(() {
-        foodsLoading = true;
-        foodsErrorText = null;
-      });
-    }
-
-    try {
-      final loaded = await ref.read(productsRepositoryProvider).baseFoodsPage(
-            query,
-            offset: offset,
-            limit: _foodsPageSize,
-          );
-
-      if (!mounted || query != foodsQueryToken) return;
-
-      setState(() {
-        if (replace) {
-          foods = loaded;
-          foodsOffset = loaded.length;
-        } else {
-          final existingIds = foods.map((e) => e.id).toSet();
-
-          final uniqueLoaded = loaded.where((e) {
-            if (existingIds.contains(e.id)) return false;
-            existingIds.add(e.id);
-            return true;
-          }).toList();
-
-          foods = [...foods, ...uniqueLoaded];
-          foodsOffset += loaded.length;
-        }
-
-        foodsHasMore = loaded.length == _foodsPageSize;
-        foodsLoading = false;
-        foodsErrorText = null;
-      });
-    } catch (e) {
-      if (!mounted || query != foodsQueryToken) return;
-
-      setState(() {
-        foodsLoading = false;
-        foodsHasMore = false;
-        foodsErrorText = e.toString();
-      });
-    }
   }
 
   Future<PickedMealSource> _recipeToPickedSource(Recipe recipe) async {
@@ -297,6 +139,11 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final foods = foodsController.foods;
+    final foodsLoading = foodsController.foodsLoading;
+    final foodsHasMore = foodsController.foodsHasMore;
+    final foodsErrorText = foodsController.foodsErrorText;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Добавить в прием пищи'),
@@ -332,22 +179,16 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
                   children: [
                     CustomProductsPanel(
                       children: [
-                        if (snapshot.connectionState == ConnectionState.waiting &&
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
                             staticData == null)
-                          const ListTile(title: Text('Загружаем свои продукты...')),
+                          const ListTile(
+                              title: Text('Загружаем свои продукты...')),
                         if (staticData != null && custom.isEmpty)
                           const ListTile(title: Text('Нет своих продуктов')),
                         ...custom.map(
-                          (e) => ListTile(
-                            title: CustomProductNameLabel(name: e.name),
-                            subtitle: Text(
-                              kbzhuPer100Text(
-                                calories: e.calories,
-                                proteins: e.proteins,
-                                fats: e.fats,
-                                carbs: e.carbs,
-                              ),
-                            ),
+                          (e) => CustomProductTile(
+                            product: e,
                             onTap: () {
                               _popPickedSource(
                                 PickedMealSource(
@@ -367,7 +208,8 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
                     ),
                     CustomRecipesPanel(
                       children: [
-                        if (snapshot.connectionState == ConnectionState.waiting &&
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
                             staticData == null)
                           const ListTile(title: Text('Загружаем рецепты...')),
                         if (staticData != null && recipes.isEmpty)
@@ -420,21 +262,13 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
                         if (foodsErrorText != null)
                           ListTile(
                             title: const Text('Ошибка загрузки базы продуктов'),
-                            subtitle: Text(foodsErrorText!),
+                            subtitle: Text(foodsErrorText),
                           ),
                         if (foods.isEmpty && !foodsLoading)
                           const ListTile(title: Text('Ничего не найдено')),
                         ...foods.map(
-                          (e) => ListTile(
-                            title: CsvFoodNameLabel(name: e.name),
-                            subtitle: Text(
-                              kbzhuPer100Text(
-                                calories: e.calories,
-                                proteins: e.proteins,
-                                fats: e.fats,
-                                carbs: e.carbs,
-                              ),
-                            ),
+                          (e) => CsvFoodTile(
+                            food: e,
                             onTap: () {
                               _popPickedSource(
                                 PickedMealSource(

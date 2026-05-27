@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_ui.dart';
 import '../../../core/design.dart';
 import '../../../domain/repositories/photos_repository.dart';
+import '../../mixins/today_change_scheduler.dart';
 import '../../state/app_refresh.dart';
+import '../../widgets/photo_slot_labels.dart';
 
 class PhotosScreen extends ConsumerStatefulWidget {
   const PhotosScreen({super.key});
@@ -16,9 +18,10 @@ class PhotosScreen extends ConsumerStatefulWidget {
 }
 
 class _PhotosScreenState extends ConsumerState<PhotosScreen>
-    with AutomaticKeepAliveClientMixin<PhotosScreen> {
+    with
+        AutomaticKeepAliveClientMixin<PhotosScreen>,
+        TodayChangeScheduler<PhotosScreen> {
   late String todayKey;
-  String? _pendingTodayKey;
 
   late final Map<int, ValueNotifier<String?>> selectedPhotoNotifiers;
 
@@ -110,32 +113,18 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
   }
 
   void _handleTodayChanged(String nextDayKey) {
-    if (!mounted) return;
-    if (nextDayKey == todayKey) {
-      _pendingTodayKey = null;
-      return;
-    }
+    if (!mounted || nextDayKey == todayKey) return;
 
     _clearSelectedPhotos();
 
     setState(() {
       todayKey = nextDayKey;
-      _pendingTodayKey = null;
       savedPhotos = const [];
       completed = false;
       loadErrorText = null;
     });
 
     _loadExistingPhotosSilently(todayKey);
-  }
-
-  void _scheduleTodayChangeIfNeeded(String nextDayKey) {
-    if (nextDayKey == todayKey || nextDayKey == _pendingTodayKey) return;
-
-    _pendingTodayKey = nextDayKey;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handleTodayChanged(nextDayKey);
-    });
   }
 
   Future<void> _savePhotos() async {
@@ -165,21 +154,6 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
     } catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.toString());
-    }
-  }
-
-  String _slotLabel(int slot) {
-    switch (slot) {
-      case 1:
-        return 'Спереди';
-      case 2:
-        return 'Сзади';
-      case 3:
-        return 'Левый бок';
-      case 4:
-        return 'Правый бок';
-      default:
-        return 'Фото $slot';
     }
   }
 
@@ -224,7 +198,11 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
     super.build(context);
 
     final currentTodayKey = ref.watch(currentDayKeyProvider);
-    _scheduleTodayChangeIfNeeded(currentTodayKey);
+    scheduleTodayChangeIfNeeded(
+      currentTodayKey: todayKey,
+      nextTodayKey: currentTodayKey,
+      onTodayChanged: _handleTodayChanged,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -246,13 +224,13 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
             ? _SavedPhotosContent(
                 photos: savedPhotos,
                 dayText: _ruDateFromDayKey(todayKey),
-                slotLabel: _slotLabel,
+                slotLabel: photoSlotLabel,
               )
             : _AddPhotosContent(
                 dayText: _ruDateFromDayKey(todayKey),
                 loadErrorText: loadErrorText,
                 selectedPhotoNotifiers: selectedPhotoNotifiers,
-                slotLabel: _slotLabel,
+                slotLabel: photoSlotLabel,
                 slotHint: _slotHint,
                 slotAsset: _slotAsset,
                 onPickForSlot: _pickForSlot,

@@ -57,15 +57,7 @@ class Recipes extends Table {
   TextColumn get id => text()();
   TextColumn get userId => text()();
   TextColumn get name => text()();
-
-  /// Вес тары для приготовления.
-  ///
-  /// Например: сотейник = 1600 г.
   RealColumn get tareWeightGrams => real().withDefault(const Constant(0.0))();
-
-  /// Вес готового блюда вместе с тарой.
-  ///
-  /// Например: готовое блюдо с сотейником = 2720 г.
   RealColumn get cookedWithTareWeightGrams =>
       real().withDefault(const Constant(0.0))();
 
@@ -82,11 +74,7 @@ class RecipeIngredients extends Table {
   TextColumn get sourceType => text()();
   TextColumn get sourceId => text()();
   TextColumn get nameSnapshot => text()();
-
-  /// Вес ингредиента в сыром виде.
   RealColumn get grams => real()();
-
-  /// КБЖУ ингредиента на 100 г в сыром виде.
   RealColumn get caloriesSnapshot => real()();
   RealColumn get proteinsSnapshot => real()();
   RealColumn get fatsSnapshot => real()();
@@ -105,7 +93,6 @@ class BodyMeasurements extends Table {
   RealColumn get waistCm => real()();
   RealColumn get hipsCm => real()();
   RealColumn get bodyFatPercent => real()();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -149,11 +136,6 @@ class MealItems extends Table {
   RealColumn get proteinsSnapshot => real()();
   RealColumn get fatsSnapshot => real()();
   RealColumn get carbsSnapshot => real()();
-
-  /// Время добавления продукта/рецепта в прием пищи.
-  ///
-  /// Нужно, чтобы при повторном добавлении продукта автоматически подставлялось
-  /// именно последнее введенное количество грамм, а не первое.
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
@@ -166,8 +148,6 @@ class ProgressPhotos extends Table {
   TextColumn get dayKey => text()();
   IntColumn get slot => integer()();
   TextColumn get localPath => text()();
-  TextColumn get remoteObjectPath => text().nullable()();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -211,7 +191,7 @@ class AppDatabase extends _$AppDatabase {
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'nutrition.sqlite'));
+    final file = File(p.join(dir.path, 'shapeup.sqlite'));
     return NativeDatabase(file);
   });
 }

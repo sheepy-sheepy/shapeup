@@ -48,7 +48,6 @@ class RecipeNutritionUseCase {
       proteins: proteins,
       fats: fats,
       carbs: carbs,
-      ingredientsWeightGrams: ingredientsWeightGrams,
       cookedWeightGrams: finalCookedWeightGrams,
     );
   }

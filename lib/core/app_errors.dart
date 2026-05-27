@@ -10,14 +10,6 @@ class ValidationException extends AppException {
   const ValidationException(super.message);
 }
 
-class AuthRequiredException extends AppException {
-  const AuthRequiredException() : super('Пользователь не авторизован');
-}
-
-class SyncException extends AppException {
-  const SyncException(super.message);
-}
-
 const String noInternetMessage =
     'Нет интернет-соединения. Проверьте подключение и повторите попытку.';
 
@@ -112,21 +104,20 @@ String russianRegisterErrorMessage(
   return _messageWithoutExceptionPrefix(rawText) ?? fallback;
 }
 
-bool isNetworkError(Object? error) {
-  if (error == null) return false;
-  return _isNetworkErrorText(error.toString().toLowerCase());
-}
-
 void ensurePositive(double value, String fieldName) {
   if (value <= 0) throw ValidationException('$fieldName должно быть больше 0');
 }
 
 void ensureNonNegative(double value, String fieldName) {
-  if (value < 0) throw ValidationException('$fieldName не может быть отрицательным');
+  if (value < 0) {
+    throw ValidationException('$fieldName не может быть отрицательным');
+  }
 }
 
 void ensureMinCount(int value, int min, String fieldName) {
-  if (value < min) throw ValidationException('$fieldName должно быть не меньше $min');
+  if (value < min) {
+    throw ValidationException('$fieldName должно быть не меньше $min');
+  }
 }
 
 void ensureNotEmpty(String value, String fieldName) {

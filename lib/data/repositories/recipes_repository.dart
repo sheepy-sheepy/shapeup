@@ -1,12 +1,11 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-
 import '../../domain/entities/recipe_models.dart';
-import '../../domain/usecases/recipe_nutrition_usecase.dart';
 import '../../domain/repositories/auth_repository.dart' as auth_domain;
 import '../../domain/repositories/recipes_repository.dart' as domain;
 import '../../core/app_errors.dart';
+import '../../core/number_utils.dart';
 import '../local/app_database.dart';
 
 final recipesRepositoryProvider = Provider<domain.RecipesRepository>((ref) {
@@ -22,17 +21,6 @@ class RecipesRepository implements domain.RecipesRepository {
   final AppDatabase db;
   final auth_domain.AuthRepository auth;
   final _uuid = const Uuid();
-
-  double _roundTo(double value, int decimals) {
-    var factor = 1.0;
-    for (var i = 0; i < decimals; i++) {
-      factor *= 10.0;
-    }
-    return (value * factor).roundToDouble() / factor;
-  }
-
-  double _kbju(double value) => _roundTo(value, 2);
-  double _grams(double value) => _roundTo(value, 1);
 
   @override
   Future<List<Recipe>> recipes([String query = '']) {
@@ -68,41 +56,12 @@ class RecipesRepository implements domain.RecipesRepository {
         .get();
   }
 
-  @override
-  double cookedWeightFromValues({
+  double _cookedWeightFromValues({
     required double tareWeightGrams,
     required double cookedWithTareWeightGrams,
   }) {
     return cookedWithTareWeightGrams - tareWeightGrams;
   }
-
-  @override
-  double cookedWeightFromRecipe(
-    Recipe recipe, {
-    double fallbackIngredientsWeightGrams = 0,
-  }) {
-    final cookedWeight = cookedWeightFromValues(
-      tareWeightGrams: recipe.tareWeightGrams,
-      cookedWithTareWeightGrams: recipe.cookedWithTareWeightGrams,
-    );
-
-    if (cookedWeight > 0) return cookedWeight;
-
-    // Для старых рецептов, созданных до добавления веса готового блюда.
-    return fallbackIngredientsWeightGrams;
-  }
-
-  @override
-  Future<RecipeTotals> calculateTotals(
-    List<RecipeIngredientInput> items, {
-    double? cookedWeightGrams,
-  }) async {
-    return RecipeNutritionUseCase.totalsForInputs(
-      items,
-      cookedWeightGrams: cookedWeightGrams,
-    );
-  }
-
 
   void _validateIngredients(List<RecipeIngredientInput> ingredients) {
     ensureMinCount(ingredients.length, 2, 'Количество продуктов в рецепте');
@@ -169,11 +128,9 @@ class RecipesRepository implements domain.RecipesRepository {
 
     final hasAnyWeight = tareWeightGrams > 0 || cookedWithTareWeightGrams > 0;
 
-    // Пока оставлено для совместимости со старым экраном рецепта:
-    // старый код еще не передает эти значения.
     if (!hasAnyWeight) return;
 
-    final cookedWeightGrams = cookedWeightFromValues(
+    final cookedWeightGrams = _cookedWeightFromValues(
       tareWeightGrams: tareWeightGrams,
       cookedWithTareWeightGrams: cookedWithTareWeightGrams,
     );
@@ -204,8 +161,9 @@ class RecipesRepository implements domain.RecipesRepository {
     await _ensureUniqueRecipeName(name: name);
 
     final recipeId = _uuid.v4();
-    final roundedTareWeightGrams = _grams(tareWeightGrams);
-    final roundedCookedWithTareWeightGrams = _grams(cookedWithTareWeightGrams);
+    final roundedTareWeightGrams = roundGrams(tareWeightGrams);
+    final roundedCookedWithTareWeightGrams =
+        roundGrams(cookedWithTareWeightGrams);
 
     await db.transaction(() async {
       await db.into(db.recipes).insert(
@@ -227,15 +185,14 @@ class RecipesRepository implements domain.RecipesRepository {
                 sourceType: i.sourceType,
                 sourceId: i.sourceId,
                 nameSnapshot: i.name,
-                grams: _grams(i.grams),
-                caloriesSnapshot: _kbju(i.calories),
-                proteinsSnapshot: _kbju(i.proteins),
-                fatsSnapshot: _kbju(i.fats),
-                carbsSnapshot: _kbju(i.carbs),
+                grams: roundGrams(i.grams),
+                caloriesSnapshot: roundKbju(i.calories),
+                proteinsSnapshot: roundKbju(i.proteins),
+                fatsSnapshot: roundKbju(i.fats),
+                carbsSnapshot: roundKbju(i.carbs),
               ),
             );
       }
-
     });
   }
 
@@ -258,8 +215,9 @@ class RecipesRepository implements domain.RecipesRepository {
       exceptRecipeId: recipeId,
     );
 
-    final roundedTareWeightGrams = _grams(tareWeightGrams);
-    final roundedCookedWithTareWeightGrams = _grams(cookedWithTareWeightGrams);
+    final roundedTareWeightGrams = roundGrams(tareWeightGrams);
+    final roundedCookedWithTareWeightGrams =
+        roundGrams(cookedWithTareWeightGrams);
 
     await db.transaction(() async {
       await (db.update(db.recipes)..where((t) => t.id.equals(recipeId))).write(
@@ -283,15 +241,14 @@ class RecipesRepository implements domain.RecipesRepository {
                 sourceType: i.sourceType,
                 sourceId: i.sourceId,
                 nameSnapshot: i.name,
-                grams: _grams(i.grams),
-                caloriesSnapshot: _kbju(i.calories),
-                proteinsSnapshot: _kbju(i.proteins),
-                fatsSnapshot: _kbju(i.fats),
-                carbsSnapshot: _kbju(i.carbs),
+                grams: roundGrams(i.grams),
+                caloriesSnapshot: roundKbju(i.calories),
+                proteinsSnapshot: roundKbju(i.proteins),
+                fatsSnapshot: roundKbju(i.fats),
+                carbsSnapshot: roundKbju(i.carbs),
               ),
             );
       }
-
     });
   }
 
@@ -302,7 +259,5 @@ class RecipesRepository implements domain.RecipesRepository {
         deleted: drift.Value(true),
       ),
     );
-
   }
-
 }

@@ -9,6 +9,7 @@ import '../../../core/app_ui.dart';
 import '../../../domain/entities/local_entities.dart';
 import '../../../domain/usecases/analytics_loader.dart';
 import '../../state/app_refresh.dart';
+import '../../widgets/photo_slot_labels.dart';
 
 final analyticsDataProvider = FutureProvider.autoDispose<AnalyticsData>((ref) {
   ref.watch(currentDayKeyProvider);
@@ -928,14 +929,11 @@ class _ChartAxesPainter extends CustomPainter {
 
     const arrowSize = 6.0;
 
-    // Границы области построения fl_chart без изменения размера самого графика.
     final plotLeft = leftReserved;
     const plotTop = -18.0;
     final plotBottom = size.height - bottomReserved;
     final plotRight = size.width - rightReserved;
 
-    // Оси вынесены за пределы области LineChart, но находятся очень близко
-    // к подписям значений и времени.
     const yAxisX = 5.0;
     const yAxisTop = plotTop;
     final yAxisBottom = plotBottom;
@@ -944,8 +942,6 @@ class _ChartAxesPainter extends CustomPainter {
     final xAxisStart = plotLeft;
     final xAxisEnd = math.min(size.width + 20, plotRight + 20);
 
-    // Ось OY: начинается на уровне левой нижней точки графика,
-    // заканчивается чуть выше левой верхней точки.
     canvas.drawLine(
       Offset(yAxisX, yAxisBottom),
       const Offset(yAxisX, yAxisTop),
@@ -962,8 +958,6 @@ class _ChartAxesPainter extends CustomPainter {
       axisPaint,
     );
 
-    // Ось OX: начинается на уровне левой нижней точки графика,
-    // заканчивается чуть правее правой нижней точки.
     canvas.drawLine(
       Offset(xAxisStart, xAxisY),
       Offset(xAxisEnd, xAxisY),
@@ -1083,21 +1077,6 @@ class _PhotoCompare extends StatelessWidget {
   final String startDay;
   final String endDay;
 
-  String _slotLabel(int slot) {
-    switch (slot) {
-      case 1:
-        return 'Передняя часть';
-      case 2:
-        return 'Задняя часть';
-      case 3:
-        return 'Левый бок';
-      case 4:
-        return 'Правый бок';
-      default:
-        return 'Фото $slot';
-    }
-  }
-
   Widget _photoCell(BuildContext context, ProgressPhoto? photo) {
     final colors = Theme.of(context).colorScheme;
 
@@ -1182,7 +1161,7 @@ class _PhotoCompare extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  _slotLabel(slot),
+                  photoSlotLabel(slot),
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15,

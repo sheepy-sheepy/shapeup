@@ -31,7 +31,6 @@ class DiaryRepository implements domain.DiaryRepository {
       throw Exception('Пользователь не авторизован');
     }
 
-    // 1. Чиним meal'ы за день: по каждому mealType должна быть ровно 1 запись
     for (final mealType in _mealTypes) {
       final rows = await (db.select(db.meals)
             ..where((t) =>
@@ -55,7 +54,6 @@ class DiaryRepository implements domain.DiaryRepository {
       if (rows.length > 1) {
         final keep = rows.first;
 
-        // переносим meal_items со всех дублей на сохраняемую запись
         for (final duplicate in rows.skip(1)) {
           await (db.update(db.mealItems)
                 ..where((t) => t.mealId.equals(duplicate.id)))
@@ -71,7 +69,6 @@ class DiaryRepository implements domain.DiaryRepository {
       }
     }
 
-    // 2. Чиним diary_day за день: должна быть ровно 1 запись
     final diaryRows = await (db.select(db.diaryDays)
           ..where((t) => t.userId.equals(user.id) & t.dayKey.equals(dayKey)))
         .get();
@@ -88,7 +85,6 @@ class DiaryRepository implements domain.DiaryRepository {
     } else if (diaryRows.length > 1) {
       final keep = diaryRows.first;
 
-      // если в дублях есть больше воды — сохраняем максимум
       final maxWater =
           diaryRows.map((e) => e.waterMl).fold<double>(keep.waterMl, math.max);
 

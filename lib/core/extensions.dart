@@ -63,27 +63,3 @@ String kbzhuForGramsText({
       'Ж: ${fats.toStringAsFixed(2)} '
       'У: ${carbs.toStringAsFixed(2)}';
 }
-
-String recipeKbzhuPer100Text({
-  required double totalGrams,
-  required double totalCalories,
-  required double totalProteins,
-  required double totalFats,
-  required double totalCarbs,
-}) {
-  if (totalGrams <= 0) {
-    return 'К: 0.00 Б: 0.00 Ж: 0.00 У: 0.00 / 100 г';
-  }
-
-  final ratio = 100.0 / totalGrams;
-
-  final calories = totalCalories * ratio;
-  final proteins = totalProteins * ratio;
-  final fats = totalFats * ratio;
-  final carbs = totalCarbs * ratio;
-
-  return 'К: ${calories.toStringAsFixed(2)} '
-      'Б: ${proteins.toStringAsFixed(2)} '
-      'Ж: ${fats.toStringAsFixed(2)} '
-      'У: ${carbs.toStringAsFixed(2)} / 100 г';
-}

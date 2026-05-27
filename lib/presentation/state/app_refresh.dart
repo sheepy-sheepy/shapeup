@@ -1,14 +1,8 @@
 import 'dart:async';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../core/date_utils.dart';
 
-/// Текущий календарный день приложения.
-///
-/// Нужен, чтобы экраны, которые уже открыты в IndexedStack, обновлялись
-/// после смены дня без перезапуска приложения.
 final currentDayKeyProvider =
     StateNotifierProvider<CurrentDayKeyNotifier, String>(
   (ref) {
@@ -18,10 +12,6 @@ final currentDayKeyProvider =
   },
 );
 
-/// Общий счетчик обновлений данных.
-///
-/// Его увеличивают экраны, которые сохраняют параметры/фото. Экраны аналитики
-/// и другие виджеты могут смотреть на этот счетчик и заново читать данные.
 final appRefreshTickProvider = StateProvider<int>((ref) => 0);
 
 void notifyAppDataChanged(WidgetRef ref) {
@@ -34,8 +24,6 @@ class CurrentDayKeyNotifier extends StateNotifier<String>
     WidgetsBinding.instance.addObserver(this);
     _scheduleNextMidnightCheck();
 
-    // Страховочная проверка: если телефон спал, приложение было в фоне
-    // или системный таймер сработал позже, день все равно обновится.
     _safetyTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _refreshDayKey(),

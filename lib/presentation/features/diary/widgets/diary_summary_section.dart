@@ -1,10 +1,8 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../../domain/services/nutrition_calculator.dart';
 import '../../../../core/design.dart';
+import '../../../../domain/services/nutrition_calculator.dart';
 import '../../../../domain/repositories/diary_repository.dart';
 import '../../../widgets/app_animations.dart';
 import 'water_card.dart';

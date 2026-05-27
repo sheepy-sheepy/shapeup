@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../core/date_utils.dart';
 import '../../../core/enums.dart';
 import '../../../core/app_errors.dart';
-import '../../../core/extensions.dart';
 import '../../../core/design.dart';
-import '../../../domain/services/nutrition_calculator.dart';
 import '../../../core/app_ui.dart';
+import '../../../domain/services/nutrition_calculator.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/profile_repository.dart';
 import '../../widgets/app_animations.dart';
+import '../../widgets/profile_form_fields.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -123,10 +122,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
     try {
       await ref.read(authRepositoryProvider).signOut(explicit: true);
-    } catch (_) {
-      // Даже если удаленный выход не удался из-за сети, не продолжаем
-      // незавершенный onboarding и открываем экран входа.
-    }
+    } catch (_) {}
 
     if (!mounted) return;
     context.go('/login');
@@ -143,20 +139,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   DateTime? _validDobFromText(String value) {
-    final text = value.trim();
-    final match = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(text);
-    if (match == null) return null;
-
-    final day = int.tryParse(match.group(1)!);
-    final month = int.tryParse(match.group(2)!);
-    final year = int.tryParse(match.group(3)!);
-    if (day == null || month == null || year == null) return null;
-
-    final parsed = DateTime(year, month, day);
-    if (parsed.day != day || parsed.month != month || parsed.year != year) {
-      return null;
-    }
-
+    final parsed = tryParseRuDate(value);
+    if (parsed == null) return null;
     if (!parsed.isBefore(DateTime.now())) return null;
 
     return parsed;
@@ -166,8 +150,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     final text = (value ?? '').trim();
     if (text.isEmpty) return 'Обязательное поле';
 
-    final match = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(text);
-    if (match == null) return 'Введите дату в формате ДД.ММ.ГГГГ';
+    if (!hasRuDateFormat(text)) return 'Введите дату в формате ДД.ММ.ГГГГ';
 
     if (_validDobFromText(text) == null) {
       return 'Введите корректную дату';
@@ -305,118 +288,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     );
   }
 
-  Widget _selectedDropdownText(String text) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  Widget _dropdownMenuText(String text) {
-    return Text(
-      text,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  Widget _sexDropdown() {
-    return DropdownButtonFormField<Sex>(
-      dropdownColor: Colors.white.withValues(alpha: 0.94),
-      initialValue: sex,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Пол'),
-      selectedItemBuilder: (context) {
-        return Sex.values
-            .map((e) => _selectedDropdownText(e.label))
-            .toList();
-      },
-      items: Sex.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: _dropdownMenuText(e.label),
-            ),
-          )
-          .toList(),
-      onChanged: loading || _openingLoginAfterExit
-          ? null
-          : (value) {
-              if (value == null) return;
-              setState(() => sex = value);
-            },
-    );
-  }
-
-  Widget _goalDropdown() {
-    return DropdownButtonFormField<Goal>(
-      dropdownColor: Colors.white.withValues(alpha: 0.94),
-      initialValue: goal,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Цель'),
-      selectedItemBuilder: (context) {
-        return Goal.values
-            .map((e) => _selectedDropdownText(e.label))
-            .toList();
-      },
-      items: Goal.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: _dropdownMenuText(e.label),
-            ),
-          )
-          .toList(),
-      onChanged: loading || _openingLoginAfterExit
-          ? null
-          : (value) {
-              if (value == null) return;
-              setState(() => goal = value);
-            },
-    );
-  }
-
-  Widget _activityDropdown() {
-    return DropdownButtonFormField<ActivityLevel>(
-      dropdownColor: Colors.white.withValues(alpha: 0.94),
-      initialValue: activity,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Образ жизни'),
-      selectedItemBuilder: (context) {
-        return ActivityLevel.values
-            .map((e) => _selectedDropdownText(e.label))
-            .toList();
-      },
-      items: ActivityLevel.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: _dropdownMenuText(e.label),
-            ),
-          )
-          .toList(),
-      onChanged: loading || _openingLoginAfterExit
-          ? null
-          : (value) {
-              if (value == null) return;
-              setState(() => activity = value);
-            },
-    );
-  }
-
-  List<Widget> _withFieldSpacing(List<Widget> children) {
-    return [
-      for (var i = 0; i < children.length; i++) ...[
-        children[i],
-        if (i != children.length - 1) const SizedBox(height: AppSpacing.md),
-      ],
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -437,7 +308,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           key: formKey,
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            children: _withFieldSpacing([
+            children: withProfileFieldSpacing([
               TextFormField(
                 controller: name,
                 enabled: !loading && !_openingLoginAfterExit,
@@ -461,9 +332,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 ),
                 validator: _dobValidator,
               ),
-              _sexDropdown(),
-              _goalDropdown(),
-              _activityDropdown(),
+              ProfileSexDropdown(
+                value: sex,
+                enabled: !loading && !_openingLoginAfterExit,
+                dropdownColor: Colors.white.withValues(alpha: 0.94),
+                onChanged: (value) => setState(() => sex = value),
+              ),
+              ProfileGoalDropdown(
+                value: goal,
+                enabled: !loading && !_openingLoginAfterExit,
+                dropdownColor: Colors.white.withValues(alpha: 0.94),
+                onChanged: (value) => setState(() => goal = value),
+              ),
+              ProfileActivityDropdown(
+                value: activity,
+                enabled: !loading && !_openingLoginAfterExit,
+                dropdownColor: Colors.white.withValues(alpha: 0.94),
+                onChanged: (value) => setState(() => activity = value),
+              ),
               const SizedBox(height: AppSpacing.sm),
               ElevatedButton(
                 onPressed: _canSave ? _save : null,

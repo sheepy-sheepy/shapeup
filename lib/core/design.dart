@@ -8,13 +8,11 @@ class AppSpacing {
   static const double md = 12;
   static const double lg = 16;
   static const double xl = 24;
-  static const double xxl = 32;
 }
 
 class AppMotion {
   const AppMotion._();
 
-  static const Duration fast = Duration(milliseconds: 160);
   static const Duration medium = Duration(milliseconds: 260);
   static const Duration slow = Duration(milliseconds: 420);
 }
@@ -60,7 +58,8 @@ class AppTheme {
 
     return base.copyWith(
       scaffoldBackgroundColor: Colors.transparent,
-      canvasColor: brightness == Brightness.dark ? scheme.surface : Colors.white,
+      canvasColor:
+          brightness == Brightness.dark ? scheme.surface : Colors.white,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -84,7 +83,8 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
+          side:
+              BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -100,7 +100,8 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
+          borderSide:
+              BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -161,27 +162,6 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-      ),
-    );
-  }
-}
-
-class AppSection extends StatelessWidget {
-  const AppSection({
-    super.key,
-    required this.child,
-    this.padding = const EdgeInsets.all(AppSpacing.lg),
-  });
-
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: padding,
-        child: child,
       ),
     );
   }

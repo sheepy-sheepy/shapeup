@@ -147,7 +147,6 @@ abstract class AuthRepository {
   String? get currentUserId;
   String? get currentEmail;
   String? get activeRemoteUserId;
-  bool get hasActiveRemoteSession;
 
   Future<dynamic> waitForRestoredCurrentUser({
     Duration timeout = const Duration(seconds: 2),
@@ -162,8 +161,6 @@ abstract class AuthRepository {
     bool warmUpRemoteSession = false,
   });
 
-  Future<RegistrationStatus?> signInOfflineIfPossible({required String email});
-
   void startRemoteSessionWarmUpForLocalAccount({
     required String email,
     required String password,
@@ -175,8 +172,6 @@ abstract class AuthRepository {
 
   Future<void> pushLocalProfileAndLatestMeasurementToSupabaseIfPossible();
 
-  /// Обновляет локально сохраненный пароль текущего пользователя.
-  /// Вызывать только после успешной смены пароля в Supabase.
   Future<void> cacheLocalPasswordForCurrentUser({required String password});
 
   Future<RegistrationStatus?> localStatusForCurrentUser();
@@ -187,7 +182,6 @@ abstract class AuthRepository {
   Future<void> resendOtp({required String email});
   Future<void> signOut({bool explicit = true});
   Future<RegistrationStatus?> fetchRemoteProfileAndSaveLocal();
-  Future<RegistrationStatus?> fetchRemoteStatus();
   Future<void> saveLocalStatus({
     required String userId,
     required String email,
