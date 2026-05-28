@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
 
+import 'app_errors.dart';
+
 class Validators {
   static String? requiredText(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Обязательное поле';
+    if (value == null || value.trim().isEmpty) return requiredFieldMessage;
     return null;
   }
 
   static String? positiveNumber(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Обязательное поле';
+    if (value == null || value.trim().isEmpty) return requiredFieldMessage;
     final d = double.tryParse(value.replaceAll(',', '.'));
-    if (d == null) return 'Введите число';
-    if (d <= 0) return 'Значение должно быть больше 0';
+    if (d == null) return enterNumberMessage;
+    if (d <= 0) return positiveValueMessage;
     return null;
   }
 
   static String? nonNegativeNumber(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Обязательное поле';
+    if (value == null || value.trim().isEmpty) return requiredFieldMessage;
     final d = double.tryParse(value.replaceAll(',', '.'));
-    if (d == null) return 'Введите число';
-    if (d < 0) return 'Значение не может быть отрицательным';
+    if (d == null) return enterNumberMessage;
+    if (d < 0) return nonNegativeValueMessage;
     return null;
   }
 }

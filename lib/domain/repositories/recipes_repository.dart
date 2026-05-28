@@ -2,13 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../entities/local_entities.dart';
 import '../entities/recipe_models.dart';
+import '../../core/app_errors.dart';
 
 export '../entities/local_entities.dart' show Recipe, RecipeIngredient;
 export '../entities/recipe_models.dart';
 
 final recipesRepositoryProvider = Provider<RecipesRepository>((ref) {
-  throw UnimplementedError(
-      'RecipesRepository должен быть подключен в data-слое');
+  throw UnimplementedError(recipesRepositoryNotConnectedMessage);
 });
 
 abstract class RecipesRepository {

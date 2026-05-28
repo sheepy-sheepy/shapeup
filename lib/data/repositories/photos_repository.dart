@@ -88,7 +88,7 @@ class PhotosRepository implements domain.PhotosRepository {
     final sourceFile = File(sourcePath);
 
     if (!sourceFile.existsSync()) {
-      throw ValidationException('Файл фото не найден: $sourcePath');
+      throw ValidationException(photoFileNotFoundMessage(sourcePath));
     }
 
     final photosDir = await _photosDirectory();
@@ -115,28 +115,28 @@ class PhotosRepository implements domain.PhotosRepository {
   }) async {
     final user = auth.currentUser;
     if (user == null) {
-      throw Exception('Пользователь не авторизован');
+      throw const AppException(unauthorizedMessage);
     }
 
     if (slotToLocalPath.length != 4) {
-      throw const ValidationException('Нужно добавить все 4 фото');
+      throw const ValidationException(allPhotosRequiredMessage);
     }
 
     final alreadyCompleted = await hasCompletedPhotosForDay(dayKey);
     if (alreadyCompleted) {
-      throw const ValidationException('Фото за текущий день уже добавлены');
+      throw const ValidationException(photosAlreadyAddedTodayMessage);
     }
 
     for (final slot in [1, 2, 3, 4]) {
       final localPath = slotToLocalPath[slot]?.trim();
 
       if (localPath == null || localPath.isEmpty) {
-        throw ValidationException('Не выбрано фото $slot');
+        throw ValidationException(photoSlotNotSelectedMessage(slot));
       }
 
       final file = File(localPath);
       if (!file.existsSync()) {
-        throw ValidationException('Файл фото $slot не найден');
+        throw ValidationException(photoSlotFileNotFoundMessage(slot));
       }
     }
 

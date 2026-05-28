@@ -1,11 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../entities/local_entities.dart';
+import '../../core/app_errors.dart';
 
 export '../entities/local_entities.dart' show CustomProduct, Food;
 
 final productsRepositoryProvider = Provider<ProductsRepository>((ref) {
-  throw UnimplementedError('ProductsRepository должен быть подключен в data-слое');
+  throw UnimplementedError(productsRepositoryNotConnectedMessage);
 });
 
 abstract class ProductsRepository {

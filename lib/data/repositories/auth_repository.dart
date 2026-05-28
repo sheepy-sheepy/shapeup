@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/app_errors.dart';
 import '../../core/enums.dart';
 import '../../core/preferences_service.dart';
 import '../../core/number_utils.dart';
@@ -14,11 +15,6 @@ import '../services/auth_local_credentials_store.dart';
 
 const _explicitSignOutKey = 'auth_explicit_sign_out';
 const _lastSignedInUserIdKey = 'auth_last_signed_in_user_id';
-const _noInternetMessage =
-    'Нет интернет-соединения. Проверьте подключение и повторите попытку.';
-const _loginCredentialsNotFoundMessage =
-    'Пользователь с такой почтой и паролем не найден.';
-const _emailAlreadyRegisteredMessage = 'Аккаунт с такой почтой уже существует.';
 const _authRequestTimeout = Duration(seconds: 12);
 const _profilePushTimeout = Duration(seconds: 8);
 
@@ -164,7 +160,7 @@ class AuthRepository implements domain.AuthRepository {
         case LocalPasswordCheck.match:
           break;
         case LocalPasswordCheck.mismatch:
-          throw Exception(_loginCredentialsNotFoundMessage);
+          throw const AppException(loginCredentialsNotFoundMessage);
         case LocalPasswordCheck.missing:
           await _verifyLocalUserPasswordThroughSupabaseAndCache(
             row: row,
@@ -310,7 +306,7 @@ class AuthRepository implements domain.AuthRepository {
       final remoteUser = response.user ?? _remoteUser;
 
       if (remoteUser == null || remoteUser.id != row.userId) {
-        throw Exception(_loginCredentialsNotFoundMessage);
+        throw const AppException(loginCredentialsNotFoundMessage);
       }
 
       await credentialsStore.savePassword(
@@ -325,55 +321,22 @@ class AuthRepository implements domain.AuthRepository {
       _enableOfflineUser(userId: row.userId, email: row.email);
       _pushLocalProfileInBackground();
     } on AuthException catch (e) {
-      if (_isInvalidLoginError(e)) {
-        throw Exception(_loginCredentialsNotFoundMessage);
+      if (isInvalidLoginCredentialsError(e)) {
+        throw const AppException(loginCredentialsNotFoundMessage);
       }
-      if (_isNetworkError(e)) {
-        throw Exception(_noInternetMessage);
+      if (isNetworkError(e)) {
+        throw const AppException(noInternetMessage);
       }
       rethrow;
     } catch (e) {
-      if (_isNetworkError(e)) {
-        throw Exception(_noInternetMessage);
+      if (isNetworkError(e)) {
+        throw const AppException(noInternetMessage);
       }
-      if (e.toString().contains(_loginCredentialsNotFoundMessage)) {
-        throw Exception(_loginCredentialsNotFoundMessage);
+      if (russianLoginErrorMessage(e) == loginCredentialsNotFoundMessage) {
+        throw const AppException(loginCredentialsNotFoundMessage);
       }
       rethrow;
     }
-  }
-
-  bool _isInvalidLoginError(Object error) {
-    final text = error.toString().toLowerCase();
-    return text.contains('invalid login credentials') ||
-        text.contains('invalid credentials') ||
-        text.contains('invalid email or password') ||
-        text.contains('invalid password') ||
-        text.contains('wrong password') ||
-        text.contains('user not found') ||
-        text.contains('email not found') ||
-        text.contains('no user found');
-  }
-
-  bool _isNetworkError(Object error) {
-    final text = error.toString().toLowerCase();
-    return text.contains('socketexception') ||
-        text.contains('failed host lookup') ||
-        text.contains('network is unreachable') ||
-        text.contains('connection refused') ||
-        text.contains('connection reset') ||
-        text.contains('connection closed') ||
-        text.contains('connection terminated') ||
-        text.contains('handshakeexception') ||
-        text.contains('authretryablefetchexception') ||
-        text.contains('clientexception') ||
-        text.contains('failed to fetch') ||
-        text.contains('xmlhttprequest error') ||
-        text.contains('temporarily unavailable') ||
-        text.contains('timed out') ||
-        text.contains('timeoutexception') ||
-        text.contains('network request failed') ||
-        text.contains('no address associated with hostname');
   }
 
   @override
@@ -394,7 +357,7 @@ class AuthRepository implements domain.AuthRepository {
   Future<void> signUp({required String email, required String password}) async {
     final alreadyExists = await isEmailRegisteredInSupabase(email);
     if (alreadyExists) {
-      throw Exception(_emailAlreadyRegisteredMessage);
+      throw const AppException(emailAlreadyRegisteredMessage);
     }
 
     final response = await _withAuthTimeout(
@@ -425,8 +388,8 @@ class AuthRepository implements domain.AuthRepository {
       if (result is String) return result.toLowerCase() == 'true';
       return result == true;
     } catch (e) {
-      if (_isNetworkError(e)) {
-        throw Exception(_noInternetMessage);
+      if (isNetworkError(e)) {
+        throw const AppException(noInternetMessage);
       }
 
       final text = e.toString().toLowerCase();
@@ -448,13 +411,13 @@ class AuthRepository implements domain.AuthRepository {
         client.auth.signInWithPassword(email: email, password: password),
       );
     } on AuthException catch (e) {
-      if (_isInvalidLoginError(e)) {
-        throw Exception(_loginCredentialsNotFoundMessage);
+      if (isInvalidLoginCredentialsError(e)) {
+        throw const AppException(loginCredentialsNotFoundMessage);
       }
       rethrow;
     } catch (e) {
-      if (_isNetworkError(e)) {
-        throw Exception(_noInternetMessage);
+      if (isNetworkError(e)) {
+        throw const AppException(noInternetMessage);
       }
       rethrow;
     }
@@ -480,7 +443,7 @@ class AuthRepository implements domain.AuthRepository {
   Future<T> _withAuthTimeout<T>(Future<T> request) {
     return request.timeout(
       _authRequestTimeout,
-      onTimeout: () => throw TimeoutException(_noInternetMessage),
+      onTimeout: () => throw TimeoutException(noInternetMessage),
     );
   }
 
@@ -624,7 +587,7 @@ class AuthRepository implements domain.AuthRepository {
   @override
   Future<void> updateStatusRemoteThenLocal(RegistrationStatus status) async {
     final user = currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     await client
         .from('profiles')

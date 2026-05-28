@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import '../../../domain/repositories/products_repository.dart';
+import '../../core/app_errors.dart';
+import '../../domain/repositories/products_repository.dart';
 
 class BaseFoodsPagingController extends ChangeNotifier {
   BaseFoodsPagingController({
@@ -225,7 +226,7 @@ class BaseFoodsPagingController extends ChangeNotifier {
 
       foodsLoading = false;
       foodsHasMore = false;
-      foodsErrorText = e.toString();
+      foodsErrorText = russianErrorMessage(e);
       _notify();
     }
   }

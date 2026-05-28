@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/enums.dart';
+import '../../../core/app_errors.dart';
 import '../../../core/app_ui.dart';
 import '../../../domain/repositories/auth_repository.dart';
 
@@ -68,55 +69,20 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     _codeFocusNode.requestFocus();
   }
 
-  String _otpErrorMessage(Object error) {
-    final text = error.toString().toLowerCase();
+  String _otpErrorMessage(Object error) => otpErrorMessage(error);
 
-    final isNetworkError = text.contains('socketexception') ||
-        text.contains('failed host lookup') ||
-        text.contains('network is unreachable') ||
-        text.contains('connection') ||
-        text.contains('timeoutexception');
-
-    if (isNetworkError) {
-      return 'Нет интернет-соединения. Проверьте подключение и повторите попытку.';
-    }
-
-    return 'Код неверный или срок действия кода истек. Попробуйте проверить правильность кода или нажать на "Отправить код повторно".';
-  }
-
-  String _resendErrorMessage(Object error) {
-    final text = error.toString().toLowerCase();
-
-    final isRateLimited = text.contains('rate limit') ||
-        text.contains('60 seconds') ||
-        text.contains('wait') ||
-        text.contains('too many requests');
-
-    if (isRateLimited) {
-      return 'Повторная отправка доступна не чаще одного раза в 60 секунд.';
-    }
-
-    if (text.contains('socketexception') ||
-        text.contains('failed host lookup') ||
-        text.contains('network is unreachable') ||
-        text.contains('connection') ||
-        text.contains('timeoutexception')) {
-      return 'Нет интернет-соединения. Проверьте подключение и повторите попытку.';
-    }
-
-    return 'Не удалось отправить код повторно. Повторите попытку.';
-  }
+  String _resendErrorMessage(Object error) => resendOtpErrorMessage(error);
 
   Future<void> _verify() async {
     final userCode = _codeText;
 
     if (email == null || email!.isEmpty) {
-      showAppSnackBar(context, 'Не удалось определить почту пользователя.');
+      showAppSnackBar(context, emailUnknownMessage);
       return;
     }
 
     if (!_isCodeComplete) {
-      showAppSnackBar(context, 'Введите полный 6-значный код из цифр.');
+      showAppSnackBar(context, otpIncompleteMessage);
       return;
     }
 
@@ -151,7 +117,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!cooldownState.canResend) return;
 
     if (email == null || email!.isEmpty) {
-      showAppSnackBar(context, 'Не удалось определить почту пользователя.');
+      showAppSnackBar(context, emailUnknownMessage);
       return;
     }
 
@@ -160,7 +126,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       await ref.read(otpCooldownProvider.notifier).startCooldown();
 
       if (!mounted) return;
-      showAppSnackBar(context, 'Код отправлен повторно.');
+      showAppSnackBar(context, otpResentMessage);
     } catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, _resendErrorMessage(e));
@@ -257,9 +223,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           ScreenHelpAction(
             title: 'Подтверждение почты',
             message:
-                'Введите 6-значный код из письма. Каждая цифра отображается в отдельной ячейке. '
-                'При стирании код удаляется как обычный текст, поэтому не нужно вручную нажимать на каждую ячейку. '
-                'Если код не пришел, дождитесь окончания таймера и нажмите «Отправить код повторно». '
+                'Введите 6-значный код из эл. письма. Каждая цифра отображается в отдельной ячейке.\n\n'
+                'Если код не пришел, дождитесь окончания таймера и нажмите «Отправить код повторно».\n\n'
                 'Код действует ограниченное время, поэтому при истечении срока запросите новый код.',
           ),
         ],

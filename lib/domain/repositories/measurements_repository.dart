@@ -2,12 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/enums.dart';
 import '../entities/local_entities.dart';
+import '../../core/app_errors.dart';
 
 export '../entities/local_entities.dart' show BodyMeasurement;
 
 final measurementsRepositoryProvider = Provider<MeasurementsRepository>((ref) {
   throw UnimplementedError(
-    'MeasurementsRepository должен быть подключен в data-слое',
+    measurementsRepositoryNotConnectedMessage,
   );
 });
 

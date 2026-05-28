@@ -2,12 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../entities/local_entities.dart';
 import '../entities/onboarding_data.dart';
+import '../../core/app_errors.dart';
 
 export '../entities/local_entities.dart' show LocalUser;
 export '../entities/onboarding_data.dart';
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  throw UnimplementedError('ProfileRepository должен быть подключен в data-слое');
+  throw UnimplementedError(profileRepositoryNotConnectedMessage);
 });
 
 abstract class ProfileRepository {

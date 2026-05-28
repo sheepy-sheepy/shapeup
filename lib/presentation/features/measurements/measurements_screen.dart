@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_errors.dart';
 import '../../../core/app_ui.dart';
 import '../../../core/design.dart';
-import '../../../core/enums.dart';
 import '../../../core/extensions.dart';
-import '../../../core/number_utils.dart';
-import '../../../domain/services/nutrition_calculator.dart';
+import '../../../domain/usecases/measurements_body_fat_usecase.dart';
 import '../../../domain/entities/local_entities.dart';
 import '../../../domain/repositories/measurements_repository.dart';
 import '../../../domain/usecases/measurements_loader.dart';
@@ -80,84 +79,22 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
     });
   }
 
-  double? _positiveDouble(TextEditingController controller) {
-    final value = double.tryParse(
-      controller.text.trim().replaceAll(',', '.'),
-    );
-
-    if (value == null || value <= 0) return null;
-    return roundTo1(value);
-  }
-
   bool get _canSaveMeasurements {
-    return _positiveDouble(weight) != null &&
-        _positiveDouble(neck) != null &&
-        _positiveDouble(waist) != null &&
-        _positiveDouble(hips) != null;
-  }
-
-  Sex? _sexFromUser(LocalUser user) {
-    final sexName = user.sex;
-    if (sexName == null) return null;
-
-    for (final item in Sex.values) {
-      if (item.name == sexName) return item;
-    }
-
-    return null;
-  }
-
-  double? _freshBodyFatForMeasurement({
-    required LocalUser user,
-    required BodyMeasurement measurement,
-  }) {
-    final sex = _sexFromUser(user);
-    final heightCm = user.heightCm;
-
-    if (sex == null || heightCm == null || heightCm <= 0) {
-      return null;
-    }
-
-    try {
-      return NutritionCalculator.bodyFatPercent(
-        sex: sex,
-        heightCm: heightCm,
-        neckCm: measurement.neckCm,
-        waistCm: measurement.waistCm,
-        hipsCm: measurement.hipsCm,
-      );
-    } catch (_) {
-      return null;
-    }
+    return MeasurementsBodyFatUseCase.canSaveMeasurementText(
+      weightKg: weight.text,
+      neckCm: neck.text,
+      waistCm: waist.text,
+      hipsCm: hips.text,
+    );
   }
 
   double? _previewBodyFat(LocalUser user) {
-    final sex = _sexFromUser(user);
-    final heightCm = user.heightCm;
-    final neckCm = _positiveDouble(neck);
-    final waistCm = _positiveDouble(waist);
-    final hipsCm = _positiveDouble(hips);
-
-    if (sex == null ||
-        heightCm == null ||
-        heightCm <= 0 ||
-        neckCm == null ||
-        waistCm == null ||
-        hipsCm == null) {
-      return null;
-    }
-
-    try {
-      return NutritionCalculator.bodyFatPercent(
-        sex: sex,
-        heightCm: heightCm,
-        neckCm: neckCm,
-        waistCm: waistCm,
-        hipsCm: hipsCm,
-      );
-    } catch (_) {
-      return null;
-    }
+    return MeasurementsBodyFatUseCase.bodyFatPreviewFromText(
+      user: user,
+      neckCm: neck.text,
+      waistCm: waist.text,
+      hipsCm: hips.text,
+    );
   }
 
   String _ruDateFromDayKey(String dayKey) {
@@ -171,18 +108,17 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
 
     if (!formKey.currentState!.validate()) return;
 
-    final weightKg = _positiveDouble(weight);
-    final neckCm = _positiveDouble(neck);
-    final waistCm = _positiveDouble(waist);
-    final hipsCm = _positiveDouble(hips);
+    final values = MeasurementsBodyFatUseCase.valuesFromText(
+      weightKg: weight.text,
+      neckCm: neck.text,
+      waistCm: waist.text,
+      hipsCm: hips.text,
+    );
 
-    if (weightKg == null ||
-        neckCm == null ||
-        waistCm == null ||
-        hipsCm == null) {
+    if (values == null) {
       showAppSnackBar(
         context,
-        'Заполните все параметры положительными числами',
+        measurementParametersPositiveMessage,
       );
       return;
     }
@@ -190,23 +126,23 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
     try {
       await ref.read(measurementsRepositoryProvider).saveMeasurement(
             dayKey: todayKey,
-            weightKg: roundTo1(weightKg),
-            neckCm: roundTo1(neckCm),
-            waistCm: roundTo1(waistCm),
-            hipsCm: roundTo1(hipsCm),
+            weightKg: values.weightKg,
+            neckCm: values.neckCm,
+            waistCm: values.waistCm,
+            hipsCm: values.hipsCm,
             heightCm: user.heightCm!,
-            sex: Sex.values.firstWhere((e) => e.name == user.sex),
+            sex: MeasurementsBodyFatUseCase.sexFromUser(user)!,
           );
 
       if (!mounted) return;
 
-      showAppSnackBar(context, 'Сохранено');
+      showAppSnackBar(context, measurementsSavedMessage);
 
       ref.invalidate(_measurementsLoadDataProvider(todayKey));
       notifyAppDataChanged(ref);
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.toString());
+      showAppSnackBar(context, russianErrorMessage(e));
     }
   }
 
@@ -233,9 +169,9 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
           ScreenHelpAction(
             title: 'Параметры тела',
             message:
-                'На этом экране можно один раз в день сохранить вес, обхват шеи, талии и бедер. '
-                'Все значения должны быть положительными числами. После сохранения приложение рассчитывает % жира '
-                'и использует эти данные для нормы КБЖУ, воды и графиков аналитики. '
+                'На этом экране можно один раз в день сохранить вес, обхват шеи, талии и бедер.\n\n'
+                'Все значения должны быть положительными числами. После сохранения приложение рассчитывает % жира'
+                'и использует эти данные для нормы КБЖУ, воды и графиков аналитики.\n\n'
                 'Если параметры за сегодня уже введены, следующий ввод будет доступен завтра.',
           ),
         ],
@@ -245,7 +181,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
         error: (error, stack) => Center(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Text('Ошибка загрузки: $error'),
+            child: Text(errorWithTitle(measurementsLoadErrorTitle, error)),
           ),
         ),
         data: (data) {
@@ -257,7 +193,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
               child: Padding(
                 padding: EdgeInsets.all(AppSpacing.lg),
                 child: Text(
-                  'Локальный профиль не найден. Выполните загрузку данных.',
+                  localProfileNotFoundMessage,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -281,14 +217,16 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
             children: [
               _MeasurementsHeaderCard(
                 dayText: _ruDateFromDayKey(todayKey),
-                sexText: _sexFromUser(user)?.label ?? 'не указан',
+                sexText: MeasurementsBodyFatUseCase.sexFromUser(user)?.label ??
+                    'не указан',
                 heightCm: user.heightCm,
               ),
               const SizedBox(height: AppSpacing.lg),
               if (todayMeasurement != null)
                 _SavedMeasurementContent(
                   measurement: todayMeasurement,
-                  freshBodyFat: _freshBodyFatForMeasurement(
+                  freshBodyFat:
+                      MeasurementsBodyFatUseCase.freshBodyFatForMeasurement(
                     user: user,
                     measurement: todayMeasurement,
                   ),

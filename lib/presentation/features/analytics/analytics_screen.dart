@@ -5,9 +5,11 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_errors.dart';
 import '../../../core/app_ui.dart';
 import '../../../domain/entities/local_entities.dart';
 import '../../../domain/usecases/analytics_loader.dart';
+import '../../controllers/analytics_chart_controller.dart';
 import '../../state/app_refresh.dart';
 import '../../widgets/photo_slot_labels.dart';
 
@@ -44,44 +46,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return result;
   }
 
-  DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
-
-  DateTime _weekStart(DateTime date) {
-    final day = _dateOnly(date);
-    return day.subtract(Duration(days: day.weekday - 1));
-  }
-
-  DateTime _anchorDateForPeriod(String chartPeriod, int offset) {
-    final now = DateTime.now();
-
-    switch (chartPeriod) {
-      case 'month':
-        return DateTime(now.year, now.month + offset, 1);
-      case 'year':
-        return DateTime(now.year + offset, 1, 1);
-      case 'week':
-      default:
-        return _weekStart(now).add(Duration(days: offset * 7));
-    }
-  }
-
-  int _periodOffsetForAnchor(String chartPeriod, DateTime anchor) {
-    final now = DateTime.now();
-
-    switch (chartPeriod) {
-      case 'month':
-        return (anchor.year - now.year) * 12 + anchor.month - now.month;
-      case 'year':
-        return anchor.year - now.year;
-      case 'week':
-      default:
-        final currentWeekStart = _weekStart(now);
-        final selectedWeekStart = _weekStart(anchor);
-        return selectedWeekStart.difference(currentWeekStart).inDays ~/ 7;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final analyticsData = ref.watch(analyticsDataProvider);
@@ -93,17 +57,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           ScreenHelpAction(
             title: 'Аналитика',
             message:
-                'Выберите тип аналитики: вес, % жира, талию, бедра, шею или фото. '
-                'Для графиков выберите период: неделя, месяц или год, а затем переключайте даты стрелками. '
-                'Нажмите на точку графика, чтобы увидеть дату и значение измерения. '
-                'Для фото выберите две даты с добавленными фотографиями, чтобы сравнить прогресс.',
+                'Выберите тип аналитики: вес, % жира, талию, бедра, шею или фото.\n\n'
+                'Для графиков выберите период: неделя, месяц или год, а затем переключайте даты стрелками.\n\n'
+                'Нажмите на точку графика, чтобы увидеть дату и значение измерения.\n\n'
+                'Для просмотра прогресса фото выберите две доступные даты.',
           ),
         ],
       ),
       body: analyticsData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(
-          child: Text('Ошибка загрузки аналитики: $error'),
+          child: Text(errorWithTitle(analyticsLoadErrorTitle, error)),
         ),
         data: (data) {
           final measurements = data.measurements;
@@ -182,9 +146,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                       }
 
                       final selectedAnchor =
-                          _anchorDateForPeriod(period, periodOffset);
+                          AnalyticsChartController.anchorDateForPeriod(
+                        period,
+                        periodOffset,
+                      );
                       period = v;
-                      periodOffset = _periodOffsetForAnchor(v, selectedAnchor);
+                      periodOffset =
+                          AnalyticsChartController.periodOffsetForAnchor(
+                        v,
+                        selectedAnchor,
+                      );
                     });
                   },
                   decoration: const InputDecoration(labelText: 'Период'),
@@ -270,18 +241,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 }
 
-class _ChartPoint {
-  const _ChartPoint({
-    required this.label,
-    required this.fullLabel,
-    required this.value,
-  });
-
-  final String label;
-  final String fullLabel;
-  final double? value;
-}
-
 class _MetricChart extends StatelessWidget {
   const _MetricChart({
     required this.type,
@@ -299,300 +258,15 @@ class _MetricChart extends StatelessWidget {
   final VoidCallback onPreviousPeriod;
   final VoidCallback onNextPeriod;
 
-  double _value(BodyMeasurement m) {
-    switch (type) {
-      case 'bodyFat':
-        return m.bodyFatPercent;
-      case 'waist':
-        return m.waistCm;
-      case 'hips':
-        return m.hipsCm;
-      case 'neck':
-        return m.neckCm;
-      case 'weight':
-      default:
-        return m.weightKg;
-    }
-  }
-
-  String _yUnit() {
-    switch (type) {
-      case 'bodyFat':
-        return '%';
-      case 'weight':
-        return 'кг';
-      default:
-        return 'см';
-    }
-  }
-
-  String _yAxisLabel() {
-    switch (type) {
-      case 'bodyFat':
-        return '% жира, %';
-      case 'waist':
-        return 'Обхват талии, см.';
-      case 'hips':
-        return 'Обхват бедер, см.';
-      case 'neck':
-        return 'Обхват шеи, см.';
-      case 'weight':
-      default:
-        return 'Вес, кг.';
-    }
-  }
-
-  String _shortYearDay(DateTime d) {
-    final day = d.day.toString().padLeft(2, '0');
-    final month = d.month.toString().padLeft(2, '0');
-    final year = (d.year % 100).toString().padLeft(2, '0');
-    return '$day.$month.$year';
-  }
-
-  String _fullMonthName(int month) {
-    const labels = [
-      'январь',
-      'февраль',
-      'март',
-      'апрель',
-      'май',
-      'июнь',
-      'июль',
-      'август',
-      'сентябрь',
-      'октябрь',
-      'ноябрь',
-      'декабрь',
-    ];
-    return labels[month - 1];
-  }
-
-  String _xAxisLabel() {
-    final anchor = _anchorDate();
-
-    if (period == 'week') {
-      final monday = anchor;
-      final sunday = monday.add(const Duration(days: 6));
-      return 'День/неделя с ${_shortYearDay(monday)} по ${_shortYearDay(sunday)}';
-    }
-
-    if (period == 'month') {
-      return 'День/${_fullMonthName(anchor.month)} ${anchor.year} г.';
-    }
-
-    return 'Месяц/${anchor.year} г.';
-  }
-
-  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-
-  DateTime _parseDayKey(String dayKey) {
-    final parts = dayKey.split('-');
-    return DateTime(
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
-  }
-
-  String _dayKey(DateTime d) {
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y-$m-$day';
-  }
-
-  String _shortDay(DateTime d) {
-    final day = d.day.toString().padLeft(2, '0');
-    final month = d.month.toString().padLeft(2, '0');
-    return '$day.$month';
-  }
-
-  String _fullRuDay(DateTime d) {
-    final day = d.day.toString().padLeft(2, '0');
-    final month = d.month.toString().padLeft(2, '0');
-    final year = d.year.toString().padLeft(4, '0');
-    return '$day.$month.$year';
-  }
-
-  String _monthLabel(int month) {
-    const labels = [
-      'Янв',
-      'Фев',
-      'Мар',
-      'Апр',
-      'Май',
-      'Июн',
-      'Июл',
-      'Авг',
-      'Сен',
-      'Окт',
-      'Ноя',
-      'Дек',
-    ];
-    return labels[month - 1];
-  }
-
-  DateTime _anchorDate() {
-    final now = DateTime.now();
-    switch (period) {
-      case 'month':
-        return DateTime(now.year, now.month + periodOffset, 1);
-      case 'year':
-        return DateTime(now.year + periodOffset, 1, 1);
-      case 'week':
-      default:
-        final today = _dateOnly(now);
-        final monday = today.subtract(Duration(days: today.weekday - 1));
-        return monday.add(Duration(days: periodOffset * 7));
-    }
-  }
-
-  String _periodTitle() {
-    final anchor = _anchorDate();
-
-    if (period == 'week') {
-      final monday = anchor;
-      final sunday = monday.add(const Duration(days: 6));
-      return '${_shortDay(monday)} - ${_shortDay(sunday)}';
-    }
-
-    if (period == 'month') {
-      return '${_monthLabel(anchor.month)} ${anchor.year}';
-    }
-
-    return anchor.year.toString();
-  }
-
-  List<_ChartPoint> _buildWeekPoints() {
-    final monday = _anchorDate();
-
-    final byDay = <String, BodyMeasurement>{
-      for (final m in items) m.dayKey: m,
-    };
-
-    return List.generate(7, (index) {
-      final date = monday.add(Duration(days: index));
-      final key = _dayKey(date);
-      final measurement = byDay[key];
-
-      return _ChartPoint(
-        label: _shortDay(date),
-        fullLabel: _fullRuDay(date),
-        value: measurement == null ? null : _value(measurement),
-      );
-    });
-  }
-
-  List<_ChartPoint> _buildMonthPoints() {
-    final anchor = _anchorDate();
-    final start = DateTime(anchor.year, anchor.month, 1);
-    final nextMonth = anchor.month == 12
-        ? DateTime(anchor.year + 1, 1, 1)
-        : DateTime(anchor.year, anchor.month + 1, 1);
-    final lastDay = nextMonth.subtract(const Duration(days: 1)).day;
-
-    final byDay = <String, BodyMeasurement>{
-      for (final m in items) m.dayKey: m,
-    };
-
-    return List.generate(lastDay, (index) {
-      final date = start.add(Duration(days: index));
-      final key = _dayKey(date);
-      final measurement = byDay[key];
-      final dayNumber = index + 1;
-      final shouldLabel = dayNumber == 1 ||
-          dayNumber == 10 ||
-          dayNumber == 20 ||
-          dayNumber == lastDay;
-
-      return _ChartPoint(
-        label: shouldLabel ? dayNumber.toString() : '',
-        fullLabel: _fullRuDay(date),
-        value: measurement == null ? null : _value(measurement),
-      );
-    });
-  }
-
-  List<_ChartPoint> _buildYearPoints() {
-    final anchor = _anchorDate();
-    final currentYear = anchor.year;
-    final points = <_ChartPoint>[];
-
-    for (int month = 1; month <= 12; month++) {
-      final monthItems = items.where((m) {
-        final date = _parseDayKey(m.dayKey);
-        return date.year == currentYear && date.month == month;
-      }).toList();
-
-      double? avg;
-      if (monthItems.isNotEmpty) {
-        final sum = monthItems.fold<double>(0, (acc, m) => acc + _value(m));
-        avg = sum / monthItems.length;
-      }
-
-      points.add(
-        _ChartPoint(
-          label: _monthLabel(month),
-          fullLabel: '${_monthLabel(month)} $currentYear',
-          value: avg,
-        ),
-      );
-    }
-
-    return points;
-  }
-
-  List<_ChartPoint> _points() {
-    switch (period) {
-      case 'month':
-        return _buildMonthPoints();
-      case 'year':
-        return _buildYearPoints();
-      case 'week':
-      default:
-        return _buildWeekPoints();
-    }
-  }
-
-  double _niceStep(double maxValue) {
-    if (maxValue <= 0) return 1;
-    const desiredTicks = 4;
-    final rough = maxValue / desiredTicks;
-    final exponent =
-        math.pow(10, (math.log(rough) / math.ln10).floor()).toDouble();
-    final fraction = rough / exponent;
-
-    double niceFraction;
-    if (fraction <= 1) {
-      niceFraction = 1;
-    } else if (fraction <= 2) {
-      niceFraction = 2;
-    } else if (fraction <= 5) {
-      niceFraction = 5;
-    } else {
-      niceFraction = 10;
-    }
-
-    return niceFraction * exponent;
-  }
-
-  double _niceMax(double maxValue) {
-    final step = _niceStep(maxValue);
-    return (maxValue / step).ceil() * step;
-  }
-
-  bool _showBottomLabel(int index, int totalCount) {
-    if (totalCount <= 8) return true;
-    if (period == 'month') {
-      return index == 0 || index == 9 || index == 19 || index == totalCount - 1;
-    }
-    if (period == 'year') return true;
-    return index == 0 || index == totalCount ~/ 2 || index == totalCount - 1;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final points = _points();
+    final chartController = AnalyticsChartController(
+      type: type,
+      period: period,
+      periodOffset: periodOffset,
+      items: items,
+    );
+    final points = chartController.points();
     final presentValues =
         points.where((e) => e.value != null).map((e) => e.value!).toList();
 
@@ -600,7 +274,7 @@ class _MetricChart extends StatelessWidget {
       return Column(
         children: [
           _PeriodHeader(
-            title: _periodTitle(),
+            title: chartController.periodTitle(),
             onPrevious: onPreviousPeriod,
             onNext: onNextPeriod,
           ),
@@ -613,21 +287,11 @@ class _MetricChart extends StatelessWidget {
     }
 
     final rawMaxY = presentValues.reduce(math.max);
-    final axisMaxY = _niceMax(rawMaxY <= 0 ? 1 : rawMaxY);
-    final yStep = _niceStep(axisMaxY);
+    final axisMaxY = chartController.niceMax(rawMaxY <= 0 ? 1 : rawMaxY);
+    final yStep = chartController.niceStep(axisMaxY);
     final chartEdgePaddingY = yStep * 0.16;
     final minY = -chartEdgePaddingY;
     final maxY = (axisMaxY + chartEdgePaddingY).toDouble();
-
-    bool isMainYLabel(double value) {
-      const epsilon = 0.0001;
-      if (value < -epsilon || value > axisMaxY + epsilon) return false;
-      if (value.abs() < epsilon) return true;
-      if ((value - axisMaxY).abs() < epsilon) return true;
-
-      final nearestStep = (value / yStep).round() * yStep;
-      return (value - nearestStep).abs() < epsilon;
-    }
 
     const chartLineWidth = 3.0;
     const chartDotRadius = 2.65;
@@ -655,7 +319,7 @@ class _MetricChart extends StatelessWidget {
         return Column(
           children: [
             _PeriodHeader(
-              title: _periodTitle(),
+              title: chartController.periodTitle(),
               onPrevious: onPreviousPeriod,
               onNext: onNextPeriod,
             ),
@@ -665,8 +329,8 @@ class _MetricChart extends StatelessWidget {
                   width: chartSide,
                   height: chartSide,
                   child: _ChartAxesOverlay(
-                    yAxisLabel: _yAxisLabel(),
-                    xAxisLabel: _xAxisLabel(),
+                    yAxisLabel: chartController.yAxisLabel(),
+                    xAxisLabel: chartController.xAxisLabel(),
                     leftReserved: leftReserved,
                     rightReserved: leftReserved,
                     bottomReserved: 36,
@@ -715,7 +379,11 @@ class _MetricChart extends StatelessWidget {
                                 reservedSize: leftReserved,
                                 interval: yStep,
                                 getTitlesWidget: (value, meta) {
-                                  if (!isMainYLabel(value)) {
+                                  if (!chartController.isMainYLabel(
+                                    value: value,
+                                    axisMaxY: axisMaxY,
+                                    yStep: yStep,
+                                  )) {
                                     return const SizedBox.shrink();
                                   }
 
@@ -749,7 +417,8 @@ class _MetricChart extends StatelessWidget {
                                       index >= points.length) {
                                     return const SizedBox.shrink();
                                   }
-                                  if (!_showBottomLabel(index, points.length)) {
+                                  if (!chartController.showBottomLabel(
+                                      index, points.length)) {
                                     return const SizedBox.shrink();
                                   }
                                   final label = points[index].label;
@@ -786,7 +455,7 @@ class _MetricChart extends StatelessWidget {
                                   final index = spot.x.toInt();
                                   final point = points[index];
                                   return LineTooltipItem(
-                                    '${point.fullLabel}\n${spot.y.toStringAsFixed(type == 'bodyFat' ? 2 : 1)} ${_yUnit()}',
+                                    '${point.fullLabel}\n${spot.y.toStringAsFixed(type == 'bodyFat' ? 2 : 1)} ${chartController.yUnit()}',
                                     const TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,

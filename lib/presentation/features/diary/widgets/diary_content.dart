@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/app_errors.dart';
 import '../../../../core/date_utils.dart';
 import '../../../../domain/services/nutrition_calculator.dart';
 import '../../../../domain/entities/local_entities.dart';
@@ -128,7 +129,7 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
 
       setState(() {
         _initialLoading = false;
-        _errorText = e.toString();
+        _errorText = russianErrorMessage(e);
       });
     }
   }
@@ -139,7 +140,6 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
           date: date,
         );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +152,7 @@ class _DiaryContentState extends ConsumerState<DiaryContent> {
 
     if (_errorText != null && _dayKey == null) {
       return Center(
-        child: Text('Ошибка загрузки дневника: $_errorText'),
+        child: Text(errorWithTitle(diaryLoadErrorTitle, _errorText)),
       );
     }
 

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/date_utils.dart';
 import '../../../core/enums.dart';
 import '../../../core/app_errors.dart';
 import '../../../core/design.dart';
 import '../../../core/app_ui.dart';
-import '../../../domain/services/nutrition_calculator.dart';
+import '../../../domain/usecases/onboarding_validation_usecase.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/profile_repository.dart';
 import '../../widgets/app_animations.dart';
@@ -96,15 +95,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   bool get _canSave {
     if (loading || _openingLoginAfterExit) return false;
 
-    if (name.text.trim().isEmpty) return false;
-    if (_positiveDouble(height) == null) return false;
-    if (_positiveDouble(weight) == null) return false;
-    if (_positiveDouble(neck) == null) return false;
-    if (_positiveDouble(hips) == null) return false;
-    if (_positiveDouble(waist) == null) return false;
-    if (_validDobFromText(dob.text) == null) return false;
-
-    return true;
+    return OnboardingValidationUseCase.canSubmit(
+      name: name.text,
+      heightCm: height.text,
+      weightKg: weight.text,
+      neckCm: neck.text,
+      hipsCm: hips.text,
+      waistCm: waist.text,
+      dateOfBirth: dob.text,
+    );
   }
 
   void _onFormChanged() {
@@ -128,112 +127,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     context.go('/login');
   }
 
-  double _d(TextEditingController controller) {
-    return double.parse(controller.text.trim().replaceAll(',', '.'));
-  }
-
-  double? _positiveDouble(TextEditingController controller) {
-    final value = double.tryParse(controller.text.trim().replaceAll(',', '.'));
-    if (value == null || value <= 0 || !value.isFinite) return null;
-    return value;
-  }
-
-  DateTime? _validDobFromText(String value) {
-    final parsed = tryParseRuDate(value);
-    if (parsed == null) return null;
-    if (!parsed.isBefore(DateTime.now())) return null;
-
-    return parsed;
-  }
-
   String? _dobValidator(String? value) {
-    final text = (value ?? '').trim();
-    if (text.isEmpty) return 'Обязательное поле';
-
-    if (!hasRuDateFormat(text)) return 'Введите дату в формате ДД.ММ.ГГГГ';
-
-    if (_validDobFromText(text) == null) {
-      return 'Введите корректную дату';
-    }
-
-    return null;
+    return OnboardingValidationUseCase.dateOfBirthValidationMessage(value);
   }
 
-  bool _bodyFatIsValid() {
-    final heightCm = _positiveDouble(height);
-    final neckCm = _positiveDouble(neck);
-    final waistCm = _positiveDouble(waist);
-    final hipsCm = _positiveDouble(hips);
-
-    if (heightCm == null ||
-        neckCm == null ||
-        waistCm == null ||
-        hipsCm == null) {
-      return false;
-    }
-
-    try {
-      final bodyFat = NutritionCalculator.bodyFatPercent(
-        sex: sex,
-        heightCm: heightCm,
-        neckCm: neckCm,
-        waistCm: waistCm,
-        hipsCm: hipsCm,
-      );
-
-      return bodyFat.isFinite && bodyFat > 0;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  String _bodyFatValidationMessage() {
-    try {
-      final heightCm = _positiveDouble(height);
-      final neckCm = _positiveDouble(neck);
-      final waistCm = _positiveDouble(waist);
-      final hipsCm = _positiveDouble(hips);
-
-      if (heightCm == null ||
-          neckCm == null ||
-          waistCm == null ||
-          hipsCm == null) {
-        return 'Для расчета процента жира все параметры тела должны быть числами больше 0.';
-      }
-
-      final bodyFat = NutritionCalculator.bodyFatPercent(
-        sex: sex,
-        heightCm: heightCm,
-        neckCm: neckCm,
-        waistCm: waistCm,
-        hipsCm: hipsCm,
-      );
-
-      if (!bodyFat.isFinite || bodyFat <= 0) {
-        return 'Процент жира должен быть числом больше 0. Проверьте рост и обхваты.';
-      }
-    } catch (e) {
-      final text = e.toString();
-      if (text.contains('талия должна быть больше шеи')) {
-        return 'Для мужчин талия должна быть больше шеи.';
-      }
-      if (text.contains('сумма талии и бедер должна быть больше шеи')) {
-        return 'Для женщин сумма талии и бедер должна быть больше шеи.';
-      }
-      if (text.contains('% жира должен быть больше 0')) {
-        return 'Процент жира должен быть числом больше 0. Проверьте рост и обхваты.';
-      }
-    }
-
-    return 'Процент жира должен быть числом больше 0. Проверьте введенные параметры.';
+  BodyFatValidationResult _bodyFatValidationResult() {
+    return OnboardingValidationUseCase.validateBodyFatFromText(
+      sex: sex,
+      heightCm: height.text,
+      neckCm: neck.text,
+      waistCm: waist.text,
+      hipsCm: hips.text,
+    );
   }
 
   Future<void> _save() async {
     if (!_canSave) return;
     if (!formKey.currentState!.validate()) return;
 
-    if (!_bodyFatIsValid()) {
-      showAppSnackBar(context, _bodyFatValidationMessage());
+    final bodyFatValidation = _bodyFatValidationResult();
+    if (!bodyFatValidation.isValid) {
+      showAppSnackBar(context, bodyFatValidation.message);
       return;
     }
 
@@ -241,19 +155,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     setState(() => loading = true);
 
     try {
+      final onboardingData = OnboardingValidationUseCase.onboardingDataFromText(
+        name: name.text,
+        heightCm: height.text,
+        weightKg: weight.text,
+        neckCm: neck.text,
+        hipsCm: hips.text,
+        waistCm: waist.text,
+        sex: sex,
+        goal: goal,
+        activity: activity,
+        dateOfBirth: dob.text,
+      );
+
+      if (onboardingData == null) return;
+
       await ref.read(profileRepositoryProvider).completeOnboarding(
-            OnboardingData(
-              name: name.text.trim(),
-              heightCm: _d(height),
-              weightKg: _d(weight),
-              neckCm: _d(neck),
-              hipsCm: _d(hips),
-              waistCm: _d(waist),
-              sex: sex,
-              goal: goal,
-              activityLevel: activity,
-              dateOfBirth: parseRuDate(dob.text.trim()),
-            ),
+            onboardingData,
           );
 
       if (!mounted) return;
@@ -265,8 +183,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         context,
         russianErrorMessage(
           e,
-          fallback:
-              'Не удалось сохранить данные onboarding. Повторите попытку.',
+          fallback: onboardingSaveFailedMessage,
         ),
       );
     } finally {
@@ -295,7 +212,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         title: const Text('Первичные данные'),
         actions: const [
           ScreenHelpAction(
-            title: 'Первичная настройка',
+            title: 'Первичные данные',
             message:
                 'Заполните имя, рост, вес, обхваты, пол, цель, активность и дату рождения.\n\n'
                 'Все числовые параметры должны быть больше 0. Дата рождения вводится в формате ДД.ММ.ГГГГ.\n\n'

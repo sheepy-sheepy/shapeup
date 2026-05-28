@@ -2,12 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../entities/diary_totals.dart';
 import '../entities/local_entities.dart';
+import '../../core/app_errors.dart';
 
 export '../entities/diary_totals.dart';
 export '../entities/local_entities.dart' show Meal, MealItem;
 
 final diaryRepositoryProvider = Provider<DiaryRepository>((ref) {
-  throw UnimplementedError('DiaryRepository должен быть подключен в data-слое');
+  throw UnimplementedError(diaryRepositoryNotConnectedMessage);
 });
 
 abstract class DiaryRepository {

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_errors.dart';
 import '../../../core/enums.dart';
 import '../../../core/date_utils.dart';
 import '../../../core/app_ui.dart';
-import '../../../core/number_utils.dart';
-import '../../../domain/services/nutrition_calculator.dart';
+import '../../../domain/usecases/profile_settings_validator.dart';
 import '../../../domain/repositories/profile_repository.dart';
 import '../../../domain/usecases/profile_settings_loader.dart';
 import '../../state/app_refresh.dart';
@@ -82,122 +82,45 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
     setState(() {});
   }
 
-  double? _positiveDoubleFromController(TextEditingController controller) {
-    final value = double.tryParse(
-      controller.text.trim().replaceAll(',', '.'),
-    );
-
-    if (value == null || value <= 0) return null;
-    return roundTo1(value);
-  }
-
-  double? _deficitFromController() {
-    final value = double.tryParse(
-      deficit.text.trim().replaceAll(',', '.'),
-    );
-
-    if (value == null || value < 50 || value > 1000) return null;
-    return roundTo0(value);
-  }
-
-  DateTime? _dobFromController() {
-    return tryParseRuDate(dob.text);
-  }
-
-  bool _sameDate(DateTime? a, DateTime? b) {
-    if (a == null || b == null) return a == b;
-
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  bool _sameDouble(double? a, double? b) {
-    if (a == null || b == null) return a == b;
-    return (a - b).abs() < 0.001;
-  }
-
-  bool _hasChanges() {
-    final currentHeight = _positiveDoubleFromController(height);
-    final currentDeficit = _deficitFromController();
-    final currentDob = _dobFromController();
-
-    return name.text.trim() != (_initialName ?? '') ||
-        !_sameDouble(currentHeight, _initialHeightCm) ||
-        !_sameDouble(currentDeficit, _initialDeficitKcal) ||
-        !_sameDate(currentDob, _initialDateOfBirth) ||
-        sex != _initialSex ||
-        goal != _initialGoal ||
-        activity != _initialActivity;
-  }
-
-  bool _calorieNormIsValid({
-    required ProfileSettingsLoadData data,
-    required double heightCm,
-    required double deficitKcal,
-    required DateTime dateOfBirth,
-  }) {
-    if (goal != Goal.loseWeight) return true;
-
-    final measurement = data.latestMeasurement;
-    if (measurement == null) return true;
-
-    final norms = NutritionCalculator.dailyNorms(
+  ProfileSettingsDraft _profileDraft() {
+    return ProfileSettingsValidator.draftFromText(
+      name: name.text,
+      heightCm: height.text,
+      deficitKcal: deficit.text,
+      dateOfBirth: dob.text,
       sex: sex,
       goal: goal,
-      activityLevel: activity,
-      weightKg: measurement.weightKg,
-      heightCm: heightCm,
-      dob: dateOfBirth,
-      deficitKcal: deficitKcal,
-      today: DateTime.now(),
+      activity: activity,
     );
+  }
 
-    return norms.calories > 0;
+  ProfileSettingsInitialValues _initialValues() {
+    return ProfileSettingsInitialValues(
+      name: _initialName ?? '',
+      heightCm: _initialHeightCm,
+      deficitKcal: _initialDeficitKcal,
+      dateOfBirth: _initialDateOfBirth,
+      sex: _initialSex,
+      goal: _initialGoal,
+      activity: _initialActivity,
+    );
   }
 
   bool _canSaveProfile(ProfileSettingsLoadData data) {
-    if (_saving) return false;
-
-    final currentName = name.text.trim();
-    if (currentName.isEmpty) return false;
-
-    final heightCm = _positiveDoubleFromController(height);
-    if (heightCm == null) return false;
-
-    final deficitKcal = _deficitFromController();
-    if (deficitKcal == null) return false;
-
-    final dateOfBirth = _dobFromController();
-    if (dateOfBirth == null) return false;
-
-    if (!_hasChanges()) return false;
-
-    return _calorieNormIsValid(
-      data: data,
-      heightCm: heightCm,
-      deficitKcal: deficitKcal,
-      dateOfBirth: dateOfBirth,
+    return ProfileSettingsValidator.canSave(
+      saving: _saving,
+      draft: _profileDraft(),
+      initial: _initialValues(),
+      latestMeasurement: data.latestMeasurement,
     );
   }
 
   String? _deficitValidator(String? value) {
-    final parsed = double.tryParse(
-      (value ?? '').trim().replaceAll(',', '.'),
-    );
-
-    if (parsed == null) return 'Введите число';
-    if (parsed < 50 || parsed > 1000) {
-      return 'Дефицит должен быть от 50 до 1000';
-    }
-
-    return null;
+    return ProfileSettingsValidator.deficitValidationMessage(value);
   }
 
   String? _dobValidator(String? value) {
-    if (tryParseRuDate(value ?? '') == null) {
-      return 'Введите дату в формате ДД.ММ.ГГГГ';
-    }
-
-    return null;
+    return ProfileSettingsValidator.dateOfBirthValidationMessage(value);
   }
 
   void _initializeFromUser(LocalUser user) {
@@ -205,13 +128,27 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
 
     _initializingControllers = true;
 
-    final formattedHeight =
-        user.heightCm == null ? '' : _formatNumber(roundTo1(user.heightCm!), 1);
-    final formattedDeficit = _formatNumber(roundTo0(user.deficitKcal), 0);
+    sex = ProfileSettingsValidator.sexFromUser(user, fallback: sex);
+    goal = ProfileSettingsValidator.goalFromUser(user, fallback: goal);
+    activity = ProfileSettingsValidator.activityFromUser(
+      user,
+      fallback: activity,
+    );
 
-    name.text = user.name ?? '';
-    height.text = formattedHeight;
-    deficit.text = formattedDeficit;
+    final initialValues = ProfileSettingsValidator.initialValuesFromUser(
+      user: user,
+      sex: sex,
+      goal: goal,
+      activity: activity,
+    );
+
+    name.text = initialValues.name;
+    height.text = initialValues.heightCm == null
+        ? ''
+        : _formatNumber(initialValues.heightCm!, 1);
+    deficit.text = initialValues.deficitKcal == null
+        ? ''
+        : _formatNumber(initialValues.deficitKcal!, 0);
 
     if (user.dateOfBirth != null) {
       dob.text = toRuDate(user.dateOfBirth!);
@@ -219,27 +156,13 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
       dob.text = '';
     }
 
-    if (user.sex != null) {
-      sex = Sex.values.firstWhere((e) => e.name == user.sex);
-    }
-
-    if (user.goal != null) {
-      goal = Goal.values.firstWhere((e) => e.name == user.goal);
-    }
-
-    if (user.activityLevel != null) {
-      activity = ActivityLevel.values.firstWhere(
-        (e) => e.name == user.activityLevel,
-      );
-    }
-
-    _initialName = name.text.trim();
-    _initialHeightCm = user.heightCm == null ? null : roundTo1(user.heightCm!);
-    _initialDeficitKcal = roundTo0(user.deficitKcal);
-    _initialDateOfBirth = user.dateOfBirth;
-    _initialSex = sex;
-    _initialGoal = goal;
-    _initialActivity = activity;
+    _initialName = initialValues.name;
+    _initialHeightCm = initialValues.heightCm;
+    _initialDeficitKcal = initialValues.deficitKcal;
+    _initialDateOfBirth = initialValues.dateOfBirth;
+    _initialSex = initialValues.sex;
+    _initialGoal = initialValues.goal;
+    _initialActivity = initialValues.activity;
 
     initialized = true;
     _initializingControllers = false;
@@ -250,9 +173,10 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
 
     if (!formKey.currentState!.validate()) return;
 
-    final heightCm = _positiveDoubleFromController(height);
-    final deficitKcal = _deficitFromController();
-    final dateOfBirth = _dobFromController();
+    final draft = _profileDraft();
+    final heightCm = draft.heightCm;
+    final deficitKcal = draft.deficitKcal;
+    final dateOfBirth = draft.dateOfBirth;
 
     if (heightCm == null || deficitKcal == null || dateOfBirth == null) {
       return;
@@ -263,19 +187,19 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
 
     try {
       await ref.read(profileRepositoryProvider).updateProfileSettings(
-            name: name.text.trim(),
-            sex: sex.name,
-            goal: goal.name,
-            activityLevel: activity.name,
-            heightCm: roundTo1(heightCm),
-            deficitKcal: roundTo0(deficitKcal),
+            name: draft.name,
+            sex: draft.sex.name,
+            goal: draft.goal.name,
+            activityLevel: draft.activity.name,
+            heightCm: heightCm,
+            deficitKcal: deficitKcal,
             dateOfBirth: dateOfBirth,
           );
 
       if (!mounted) return;
 
-      final savedHeightCm = roundTo1(heightCm);
-      final savedDeficitKcal = roundTo0(deficitKcal);
+      final savedHeightCm = heightCm;
+      final savedDeficitKcal = deficitKcal;
 
       _initializingControllers = true;
       height.text = _formatNumber(savedHeightCm, 1);
@@ -283,29 +207,23 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
       _initializingControllers = false;
 
       setState(() {
-        _initialName = name.text.trim();
+        _initialName = draft.name;
         _initialHeightCm = savedHeightCm;
         _initialDeficitKcal = savedDeficitKcal;
         _initialDateOfBirth = dateOfBirth;
-        _initialSex = sex;
-        _initialGoal = goal;
-        _initialActivity = activity;
+        _initialSex = draft.sex;
+        _initialGoal = draft.goal;
+        _initialActivity = draft.activity;
       });
 
       ref.invalidate(_profileSettingsLoadDataProvider);
       notifyAppDataChanged(ref);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Данные пользователя были успешно сохранены'),
-        ),
-      );
+      showAppSnackBar(context, profileSavedMessage);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      showAppSnackBar(context, russianErrorMessage(e));
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -319,13 +237,14 @@ class _ProfileSettingsFormState extends ConsumerState<ProfileSettingsForm> {
 
     return loadData.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Text('Ошибка загрузки профиля: $error'),
+      error: (error, stack) =>
+          Text(errorWithTitle(profileLoadErrorTitle, error)),
       data: (data) {
         final user = data.user;
 
         if (user == null) {
           return const Text(
-            'Локальный профиль не найден. Выполните вход заново.',
+            localProfileLoginAgainMessage,
           );
         }
 

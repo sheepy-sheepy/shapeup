@@ -79,9 +79,7 @@ class RecipesRepository implements domain.RecipesRepository {
     }
 
     if (distinctProducts.length < 2) {
-      throw const ValidationException(
-        'В рецепте должно быть минимум 2 разных продукта',
-      );
+      throw const ValidationException(recipeMinDifferentProductsMessage);
     }
   }
 
@@ -90,7 +88,7 @@ class RecipesRepository implements domain.RecipesRepository {
     String? exceptRecipeId,
   }) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     final normalizedName = name.trim().toLowerCase();
     if (normalizedName.isEmpty) return;
@@ -108,9 +106,7 @@ class RecipesRepository implements domain.RecipesRepository {
     });
 
     if (duplicate) {
-      throw const ValidationException(
-        'Рецепт с таким названием уже есть в своих рецептах',
-      );
+      throw const ValidationException(recipeDuplicateMessage);
     }
   }
 
@@ -119,11 +115,11 @@ class RecipesRepository implements domain.RecipesRepository {
     required double cookedWithTareWeightGrams,
   }) {
     if (tareWeightGrams < 0) {
-      throw Exception('Вес тары не может быть меньше 0');
+      throw const ValidationException(tareWeightNonNegativeMessage);
     }
 
     if (cookedWithTareWeightGrams < 0) {
-      throw Exception('Вес готового блюда с тарой не может быть меньше 0');
+      throw const ValidationException(cookedWithTareWeightNonNegativeMessage);
     }
 
     final hasAnyWeight = tareWeightGrams > 0 || cookedWithTareWeightGrams > 0;
@@ -136,9 +132,7 @@ class RecipesRepository implements domain.RecipesRepository {
     );
 
     if (cookedWeightGrams <= 0) {
-      throw Exception(
-        'Итоговый вес готового блюда должен быть больше 0',
-      );
+      throw const ValidationException(cookedWeightPositiveMessage);
     }
   }
 
@@ -150,7 +144,7 @@ class RecipesRepository implements domain.RecipesRepository {
     double cookedWithTareWeightGrams = 0,
   }) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     ensureNotEmpty(name, 'Название рецепта');
     _validateIngredients(ingredients);

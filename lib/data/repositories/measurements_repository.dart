@@ -35,7 +35,7 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
     required Sex sex,
   }) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     ensurePositive(weightKg, 'Вес');
     ensurePositive(neckCm, 'Шея');
@@ -59,15 +59,11 @@ class MeasurementsRepository implements domain.MeasurementsRepository {
         hipsCm: roundedHipsCm,
       );
     } catch (_) {
-      throw const ValidationException(
-        'Рассчитанный % жира должен быть числом больше 0. Проверьте рост и параметры тела.',
-      );
+      throw const ValidationException(calculatedBodyFatInvalidMessage);
     }
 
     if (bodyFat.isNaN || bodyFat.isInfinite || bodyFat <= 0) {
-      throw const ValidationException(
-        'Рассчитанный % жира должен быть числом больше 0. Проверьте рост и параметры тела.',
-      );
+      throw const ValidationException(calculatedBodyFatInvalidMessage);
     }
 
     final existing = await (db.select(db.bodyMeasurements)

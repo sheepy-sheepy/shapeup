@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_errors.dart';
 
 import '../../../core/app_ui.dart';
 import '../../../core/design.dart';
 import '../../../domain/repositories/photos_repository.dart';
+import '../../../domain/usecases/progress_photos_usecase.dart';
 import '../../mixins/today_change_scheduler.dart';
 import '../../state/app_refresh.dart';
 import '../../widgets/photo_slot_labels.dart';
@@ -25,7 +27,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
 
   late final Map<int, ValueNotifier<String?>> selectedPhotoNotifiers;
 
-  List<dynamic> savedPhotos = const [];
+  List<ProgressPhoto> savedPhotos = const [];
   bool completed = false;
   String? loadErrorText;
 
@@ -68,14 +70,14 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
 
       setState(() {
         savedPhotos = photos;
-        completed = photos.map((e) => e.slot).toSet().length == 4;
+        completed = ProgressPhotosUseCase.dayIsCompleted(photos);
         loadErrorText = null;
       });
     } catch (e) {
       if (!mounted || requestedDayKey != todayKey) return;
 
       setState(() {
-        loadErrorText = e.toString();
+        loadErrorText = russianErrorMessage(e);
       });
     }
   }
@@ -88,22 +90,30 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
       selectedPhotoNotifiers[slot]!.value = file.path;
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.toString());
+      showAppSnackBar(context, russianErrorMessage(e));
     }
   }
 
+  Map<int, String?> _selectedPhotoPaths() {
+    return {
+      for (final entry in selectedPhotoNotifiers.entries)
+        entry.key: entry.value.value,
+    };
+  }
+
+  bool _pathExists(String path) {
+    return File(path).existsSync();
+  }
+
   bool _allPhotosSelected() {
-    return selectedPhotoNotifiers.values.every((notifier) {
-      final path = notifier.value;
-      return path != null && path.isNotEmpty && File(path).existsSync();
-    });
+    return ProgressPhotosUseCase.allPhotosSelected(
+      _selectedPhotoPaths(),
+      pathExists: _pathExists,
+    );
   }
 
   Map<int, String> _selectedPhotosMap() {
-    return {
-      for (final entry in selectedPhotoNotifiers.entries)
-        if (entry.value.value != null) entry.key: entry.value.value!,
-    };
+    return ProgressPhotosUseCase.selectedPhotosMap(_selectedPhotoPaths());
   }
 
   void _clearSelectedPhotos() {
@@ -145,15 +155,15 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
 
       setState(() {
         savedPhotos = photos;
-        completed = photos.map((e) => e.slot).toSet().length == 4;
+        completed = ProgressPhotosUseCase.dayIsCompleted(photos);
         loadErrorText = null;
       });
 
       notifyAppDataChanged(ref);
-      showAppSnackBar(context, 'Фото сохранены');
+      showAppSnackBar(context, photoSavedMessage);
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.toString());
+      showAppSnackBar(context, russianErrorMessage(e));
     }
   }
 
@@ -212,8 +222,11 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen>
             title: 'Фото прогресса',
             message:
                 'На этом экране можно один раз в день добавить 4 фото прогресса: спереди, сзади, левый бок и правый бок. '
+                'Для сохранения предоставьте разрешение доступа к галерее. '
                 'Нажмите на нужную область, выберите изображение JPG или JPEG из памяти телефона и заполните все 4 позиции. '
-                'Фото показываются в ячейках формата 3:4 без долгой обработки при сохранении. '
+                'Фото показываются в ячейках формата 3:4.\n\n'
+                'Выбирайте фото, где фигура находится на одинаковом расстоянии до камеры. Для сохранения позиции рекомендуется ставить ноги по краям листа А4.\n\n'
+                'При сохранении Вы соглашаетесь с хранением фото в локальной базе данных на телефоне. '
                 'После сохранения фото за этот день изменить нельзя, следующий набор можно добавить завтра.',
           ),
         ],
@@ -249,7 +262,7 @@ class _SavedPhotosContent extends StatelessWidget {
     required this.slotLabel,
   });
 
-  final List<dynamic> photos;
+  final List<ProgressPhoto> photos;
   final String dayText;
   final String Function(int slot) slotLabel;
 
@@ -266,7 +279,7 @@ class _SavedPhotosContent extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         Expanded(
           child: GridView.builder(
-            itemCount: 4,
+            itemCount: ProgressPhotosUseCase.requiredPhotoCount,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: AppSpacing.md,
@@ -282,7 +295,7 @@ class _SavedPhotosContent extends StatelessWidget {
               return _SavedPhotoSlotCell(
                 slot: slot,
                 label: slotLabel(slot),
-                localPath: photo.localPath as String,
+                localPath: photo.localPath,
               );
             },
           ),
@@ -315,15 +328,18 @@ class _AddPhotosContent extends StatelessWidget {
   final bool Function() allPhotosSelected;
   final Future<void> Function() onSave;
 
+  Map<int, String?> _selectedPhotoPaths() {
+    return {
+      for (final entry in selectedPhotoNotifiers.entries)
+        entry.key: entry.value.value,
+    };
+  }
+
   int _selectedCount() {
-    var count = 0;
-    for (final notifier in selectedPhotoNotifiers.values) {
-      final path = notifier.value;
-      if (path != null && path.isNotEmpty && File(path).existsSync()) {
-        count++;
-      }
-    }
-    return count;
+    return ProgressPhotosUseCase.selectedCount(
+      _selectedPhotoPaths(),
+      pathExists: (path) => File(path).existsSync(),
+    );
   }
 
   @override
@@ -342,7 +358,10 @@ class _AddPhotosContent extends StatelessWidget {
                 subtitle: dayText,
                 icon: Icons.photo_camera_outlined),
             const SizedBox(height: AppSpacing.md),
-            _PhotoSelectionProgress(selectedCount: selectedCount),
+            _PhotoSelectionProgress(
+              selectedCount: selectedCount,
+              requiredCount: ProgressPhotosUseCase.requiredPhotoCount,
+            ),
             if (loadErrorText != null) ...[
               const SizedBox(height: AppSpacing.md),
               _ErrorBanner(text: loadErrorText!),
@@ -350,7 +369,7 @@ class _AddPhotosContent extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             Expanded(
               child: GridView.builder(
-                itemCount: 4,
+                itemCount: ProgressPhotosUseCase.requiredPhotoCount,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: AppSpacing.md,
@@ -465,14 +484,18 @@ class _PhotosHeaderCard extends StatelessWidget {
 }
 
 class _PhotoSelectionProgress extends StatelessWidget {
-  const _PhotoSelectionProgress({required this.selectedCount});
+  const _PhotoSelectionProgress({
+    required this.selectedCount,
+    required this.requiredCount,
+  });
 
   final int selectedCount;
+  final int requiredCount;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final progress = selectedCount / 4.0;
+    final progress = selectedCount / requiredCount;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -490,9 +513,9 @@ class _PhotoSelectionProgress extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  selectedCount == 4
+                  selectedCount == requiredCount
                       ? 'Все фото выбраны'
-                      : 'Выбрано $selectedCount из 4 фото',
+                      : 'Выбрано $selectedCount из $requiredCount фото',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -507,7 +530,9 @@ class _PhotoSelectionProgress extends StatelessWidget {
               value: progress,
               minHeight: 8,
               backgroundColor: colors.surfaceContainerHighest,
-              color: selectedCount == 4 ? colors.primary : colors.tertiary,
+              color: selectedCount == requiredCount
+                  ? colors.primary
+                  : colors.tertiary,
             ),
           ),
         ],
@@ -532,7 +557,7 @@ class _ErrorBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Text(
-        'Ошибка загрузки фото: $text',
+        errorWithTitle(photosLoadErrorTitle, text),
         style: TextStyle(color: colors.onErrorContainer),
       ),
     );

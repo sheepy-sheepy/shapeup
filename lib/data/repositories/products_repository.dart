@@ -156,7 +156,7 @@ class ProductsRepository implements domain.ProductsRepository {
     String? exceptProductId,
   }) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     final normalizedName = _normalize(name);
     if (normalizedName.isEmpty) return;
@@ -174,9 +174,7 @@ class ProductsRepository implements domain.ProductsRepository {
     });
 
     if (duplicateCustom) {
-      throw const ValidationException(
-        'Продукт с таким названием уже есть в своих продуктах',
-      );
+      throw const ValidationException(productDuplicateCustomMessage);
     }
 
     final baseRows = await _allBaseFoods();
@@ -185,9 +183,7 @@ class ProductsRepository implements domain.ProductsRepository {
     );
 
     if (duplicateBase) {
-      throw const ValidationException(
-        'Продукт с таким названием уже есть в готовой базе продуктов',
-      );
+      throw const ValidationException(productDuplicateBaseMessage);
     }
   }
 
@@ -200,7 +196,7 @@ class ProductsRepository implements domain.ProductsRepository {
     required double carbs,
   }) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     ensureNotEmpty(name, 'Название продукта');
     ensureNonNegative(calories, 'Калории');

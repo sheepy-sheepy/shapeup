@@ -29,12 +29,7 @@ class PhotoPickerService {
       );
     } catch (e) {
       throw ValidationException(
-        russianErrorMessage(
-          e,
-          fallback:
-              'Не удалось открыть галерею. Проверьте разрешение на доступ к фото.',
-        ),
-      );
+          russianErrorMessage(e, fallback: photoOpenGalleryFailedMessage));
     }
 
     if (file == null) return null;
@@ -47,9 +42,7 @@ class PhotoPickerService {
         path.endsWith('.jpeg');
 
     if (!isJpeg) {
-      throw const ValidationException(
-        'Неверный формат файла. Разрешены только изображения JPG или JPEG.',
-      );
+      throw const ValidationException(invalidJpegMessage);
     }
 
     return file;
@@ -64,12 +57,10 @@ class PhotoPickerService {
 
       if (status.isPermanentlyDenied || status.isRestricted) {
         await openAppSettings();
-        throw const ValidationException(
-          'Нет доступа к фото. Разрешите доступ к фото в настройках приложения.',
-        );
+        throw const ValidationException(photoAccessSettingsMessage);
       }
 
-      throw const ValidationException('Нет доступа к фото');
+      throw const ValidationException(photoAccessDeniedMessage);
     }
 
     final photosStatus = await _requestIfNeeded(Permission.photos);
@@ -83,12 +74,10 @@ class PhotoPickerService {
         storageStatus.isPermanentlyDenied ||
         storageStatus.isRestricted) {
       await openAppSettings();
-      throw const ValidationException(
-        'Нет доступа к фото. Разрешите доступ к фото в настройках приложения.',
-      );
+      throw const ValidationException(photoAccessSettingsMessage);
     }
 
-    throw const ValidationException('Нет доступа к фото');
+    throw const ValidationException(photoAccessDeniedMessage);
   }
 
   Future<PermissionStatus> _requestIfNeeded(Permission permission) async {

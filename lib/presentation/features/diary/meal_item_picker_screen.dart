@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_errors.dart';
 import '../../../core/extensions.dart';
 import '../../../core/app_ui.dart';
 import '../../../domain/entities/local_entities.dart';
@@ -132,9 +133,7 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
   }
 
   void _showSnackBar(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+    showAppSnackBar(context, text);
   }
 
   @override
@@ -222,8 +221,7 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
                               builder: (context, snapshot) {
                                 if (snapshot.hasError) {
                                   return const Text(
-                                    'Не указан итоговый вес готового блюда',
-                                  );
+                                      recipeCookedWeightMissingMessage);
                                 }
 
                                 if (!snapshot.hasData) {
@@ -250,7 +248,7 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
                                 _popPickedSource(picked);
                               } catch (error) {
                                 if (!mounted) return;
-                                _showSnackBar(error.toString());
+                                _showSnackBar(russianErrorMessage(error));
                               }
                             },
                           ),
@@ -261,11 +259,11 @@ class _MealItemPickerScreenState extends ConsumerState<MealItemPickerScreen> {
                       children: [
                         if (foodsErrorText != null)
                           ListTile(
-                            title: const Text('Ошибка загрузки базы продуктов'),
+                            title: const Text(baseFoodsLoadErrorTitle),
                             subtitle: Text(foodsErrorText),
                           ),
                         if (foods.isEmpty && !foodsLoading)
-                          const ListTile(title: Text('Ничего не найдено')),
+                          const ListTile(title: Text(nothingFoundMessage)),
                         ...foods.map(
                           (e) => CsvFoodTile(
                             food: e,

@@ -118,7 +118,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
 
       case null:
-        showAppSnackBar(context, 'Статус регистрации не найден');
+        showAppSnackBar(context, registrationStatusNotFoundMessage);
         return;
     }
   }
@@ -143,7 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             message:
                 'Введите почту и пароль, указанные при регистрации, и нажмите «Войти».\n\n'
                 'Если почта ещё не подтверждена, приложение откроет экран ввода кода.\n\n'
-                'Если onboarding не завершён, приложение откроет экран заполнения параметров.\n\n'
+                'Если ввод первоначальных данных не завершён, приложение откроет экран заполнения этих данных.\n\n'
                 'Если аккаунт полностью зарегистрирован, откроется личный кабинет.',
           ),
         ],

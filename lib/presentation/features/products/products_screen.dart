@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_errors.dart';
 
 import '../../../core/extensions.dart';
 import '../../../core/app_ui.dart';
@@ -8,6 +9,7 @@ import '../../../domain/repositories/products_repository.dart';
 import '../../../domain/repositories/recipes_repository.dart';
 import '../../services/recipe_search_service.dart';
 import '../../../domain/usecases/recipe_nutrition_usecase.dart';
+import '../../../domain/usecases/product_form_usecase.dart';
 import '../../controllers/base_foods_paging_controller.dart';
 import 'recipe_editor_screen.dart';
 import '../../widgets/products_panel.dart';
@@ -117,7 +119,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
         carbs: per100.carbs,
       );
     } catch (_) {
-      return 'Не указан итоговый вес готового блюда';
+      return recipeCookedWeightMissingMessage;
     }
   }
 
@@ -150,10 +152,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
         actions: const [
           ScreenHelpAction(
             title: 'Продукты и рецепты',
-            message: 'На этом экране можно создавать свои продукты и рецепты. '
-                'Во вкладке «Продукты» добавляйте свои продукты: название и КБЖУ на 100 г. '
-                'Название своего продукта не должно совпадать с уже созданными продуктами и продуктами из встроенной базы. '
-                'Во вкладке «Рецепты» создавайте блюда из разных продуктов, указывайте граммовку ингредиентов, вес тары и вес готового блюда с тарой. '
+            message: 'На этом экране можно создавать свои продукты и рецепты.\n\n'
+                'Во вкладке «Продукты» добавляйте свои продукты: название и КБЖУ на 100 г.\n\n'
+                'Название своего продукта не должно совпадать с уже созданными продуктами и продуктами из встроенной базы.\n\n'
+                'Во вкладке «Рецепты» создавайте блюда из разных продуктов, указывайте граммовку ингредиентов, вес тары и вес готового блюда с тарой.\n\n'
                 'Поиск сверху помогает быстро найти свои продукты, рецепты и продукты из встроенной базы.',
           ),
         ],
@@ -213,7 +215,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                     if (snapshot.hasError) {
                       return Center(
                         child: Text(
-                          'Ошибка загрузки продуктов: ${snapshot.error}',
+                          errorWithTitle(
+                              productsLoadErrorTitle, snapshot.error),
                         ),
                       );
                     }
@@ -266,13 +269,12 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                             children: [
                               if (foodsErrorText != null)
                                 ListTile(
-                                  title: const Text(
-                                      'Ошибка загрузки базы продуктов'),
+                                  title: const Text(baseFoodsLoadErrorTitle),
                                   subtitle: Text(foodsErrorText),
                                 ),
                               if (foods.isEmpty && !foodsLoading)
                                 const ListTile(
-                                    title: Text('Ничего не найдено')),
+                                    title: Text(nothingFoundMessage)),
                               ...foods.map(
                                 (e) => CsvFoodTile(food: e),
                               ),
@@ -302,7 +304,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                     if (snapshot.hasError) {
                       return Center(
                         child: Text(
-                          'Ошибка загрузки рецептов: ${snapshot.error}',
+                          errorWithTitle(recipesLoadErrorTitle, snapshot.error),
                         ),
                       );
                     }
@@ -447,22 +449,15 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
   }
 
   double? _nonNegativeDouble(TextEditingController controller) {
-    final value = double.tryParse(
-      controller.text.trim().replaceAll(',', '.'),
-    );
-
-    if (value == null || value < 0) return null;
-    return value;
+    return ProductFormUseCase.nonNegativeNumberFromText(controller.text);
   }
 
   double? _caloriesFromMacros() {
-    final p = _nonNegativeDouble(proteins);
-    final f = _nonNegativeDouble(fats);
-    final c = _nonNegativeDouble(carbs);
-
-    if (p == null || f == null || c == null) return null;
-
-    return (p * 4) + (f * 9) + (c * 4);
+    return ProductFormUseCase.caloriesFromMacros(
+      proteins: _nonNegativeDouble(proteins),
+      fats: _nonNegativeDouble(fats),
+      carbs: _nonNegativeDouble(carbs),
+    );
   }
 
   String? _macroCaloriesText() {
@@ -476,22 +471,17 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
   }
 
   bool get _canSaveProduct {
-    return name.text.trim().isNotEmpty &&
-        _nonNegativeDouble(calories) != null &&
-        _nonNegativeDouble(proteins) != null &&
-        _nonNegativeDouble(fats) != null &&
-        _nonNegativeDouble(carbs) != null;
+    return ProductFormUseCase.canSaveProduct(
+      name: name.text,
+      calories: _nonNegativeDouble(calories),
+      proteins: _nonNegativeDouble(proteins),
+      fats: _nonNegativeDouble(fats),
+      carbs: _nonNegativeDouble(carbs),
+    );
   }
 
   String _cleanErrorText(Object error) {
-    final text = error.toString();
-    const exceptionPrefix = 'Exception: ';
-
-    if (text.startsWith(exceptionPrefix)) {
-      return text.substring(exceptionPrefix.length);
-    }
-
-    return text;
+    return russianErrorMessage(error);
   }
 
   @override

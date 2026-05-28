@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/app_errors.dart';
 
 import '../../../../core/extensions.dart';
 import '../../../../core/app_ui.dart';
 import '../../../../core/design.dart';
 import '../../../../core/number_utils.dart';
 import '../../../../domain/repositories/diary_repository.dart';
+import '../../../../domain/usecases/meal_item_grams_usecase.dart';
+import '../../../../domain/usecases/meal_totals_usecase.dart';
 import '../../../widgets/grams_input_content.dart';
 import '../meal_item_picker_screen.dart';
 
@@ -46,29 +49,6 @@ class _MealCardState extends ConsumerState<MealCard> {
     }
   }
 
-  _MealTotals _mealTotals() {
-    double calories = 0;
-    double proteins = 0;
-    double fats = 0;
-    double carbs = 0;
-
-    for (final item in items) {
-      final ratio = item.grams / 100.0;
-
-      calories += item.caloriesSnapshot * ratio;
-      proteins += item.proteinsSnapshot * ratio;
-      fats += item.fatsSnapshot * ratio;
-      carbs += item.carbsSnapshot * ratio;
-    }
-
-    return _MealTotals(
-      calories: calories,
-      proteins: proteins,
-      fats: fats,
-      carbs: carbs,
-    );
-  }
-
   Future<void> _loadInitialItems() async {
     try {
       final loaded =
@@ -85,7 +65,7 @@ class _MealCardState extends ConsumerState<MealCard> {
       if (!mounted) return;
 
       setState(() {
-        errorText = e.toString();
+        errorText = russianErrorMessage(e);
         initialLoading = false;
       });
     }
@@ -121,10 +101,7 @@ class _MealCardState extends ConsumerState<MealCard> {
       context: context,
       builder: (_) {
         bool canAdd() {
-          final grams = double.tryParse(
-            gramsController.text.trim().replaceAll(',', '.'),
-          );
-          return grams != null && grams > 0;
+          return MealItemGramsUseCase.canSubmitGrams(gramsController.text);
         }
 
         return StatefulBuilder(
@@ -156,13 +133,13 @@ class _MealCardState extends ConsumerState<MealCard> {
 
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final parsedGrams =
-        double.tryParse(gramsController.text.replaceAll(',', '.'));
-    final grams = parsedGrams == null ? null : roundGrams(parsedGrams);
+    final grams = MealItemGramsUseCase.positiveGramsFromText(
+      gramsController.text,
+    );
 
     if (grams == null || grams <= 0) {
       if (mounted) {
-        showAppSnackBar(context, 'Граммы должны быть больше 0');
+        showAppSnackBar(context, gramsPositiveMessage);
       }
       return;
     }
@@ -194,10 +171,7 @@ class _MealCardState extends ConsumerState<MealCard> {
       context: context,
       builder: (_) {
         bool canSave() {
-          final grams = double.tryParse(
-            controller.text.trim().replaceAll(',', '.'),
-          );
-          return grams != null && grams > 0;
+          return MealItemGramsUseCase.canSubmitGrams(controller.text);
         }
 
         return StatefulBuilder(
@@ -229,12 +203,13 @@ class _MealCardState extends ConsumerState<MealCard> {
 
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final parsedGrams = double.tryParse(controller.text.replaceAll(',', '.'));
-    final grams = parsedGrams == null ? null : roundGrams(parsedGrams);
+    final grams = MealItemGramsUseCase.positiveGramsFromText(
+      controller.text,
+    );
 
     if (grams == null || grams <= 0) {
       if (mounted) {
-        showAppSnackBar(context, 'Граммы должны быть больше 0');
+        showAppSnackBar(context, gramsPositiveMessage);
       }
       return;
     }
@@ -265,7 +240,7 @@ class _MealCardState extends ConsumerState<MealCard> {
 
   @override
   Widget build(BuildContext context) {
-    final totals = _mealTotals();
+    final totals = MealTotalsUseCase.calculate(items);
 
     return Card(
       child: ExpansionTile(
@@ -338,7 +313,7 @@ class _MealCardState extends ConsumerState<MealCard> {
           else if (errorText != null)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Ошибка загрузки приема пищи: $errorText'),
+              child: Text(errorWithTitle(mealLoadErrorTitle, errorText)),
             )
           else if (items.isEmpty)
             const ListTile(
@@ -491,18 +466,4 @@ class _FixedKbzhuCell extends StatelessWidget {
       ),
     );
   }
-}
-
-class _MealTotals {
-  const _MealTotals({
-    required this.calories,
-    required this.proteins,
-    required this.fats,
-    required this.carbs,
-  });
-
-  final double calories;
-  final double proteins;
-  final double fats;
-  final double carbs;
 }

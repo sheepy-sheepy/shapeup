@@ -33,7 +33,7 @@ class ProfileRepository implements domain.ProfileRepository {
   @override
   Future<void> completeOnboarding(OnboardingData data) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     await auth.waitForRemoteSessionWarmUp(
       maxWait: const Duration(seconds: 12),
@@ -41,9 +41,7 @@ class ProfileRepository implements domain.ProfileRepository {
 
     final remoteUserId = auth.activeRemoteUserId;
     if (remoteUserId == null) {
-      throw const AppException(
-        'Для завершения onboarding нужно интернет-соединение. Проверьте подключение и повторите попытку.',
-      );
+      throw const AppException(onboardingNeedsInternetMessage);
     }
 
     final email = auth.currentEmail ?? user.email ?? '';
@@ -89,9 +87,7 @@ class ProfileRepository implements domain.ProfileRepository {
 
     final savedStatus = savedProfile['registration_status'] as String?;
     if (savedStatus != RegistrationStatus.fullyRegistered.value) {
-      throw const AppException(
-        'Не удалось завершить onboarding в Supabase. Повторите попытку.',
-      );
+      throw const AppException(onboardingSupabaseFinishFailedMessage);
     }
 
     await db.into(db.localUsers).insertOnConflictUpdate(
@@ -134,7 +130,7 @@ class ProfileRepository implements domain.ProfileRepository {
     required DateTime dateOfBirth,
   }) async {
     final user = auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw const AppException(unauthorizedMessage);
 
     final roundedHeightCm = roundTo1(heightCm);
 
@@ -144,9 +140,7 @@ class ProfileRepository implements domain.ProfileRepository {
 
     final remoteUserId = auth.activeRemoteUserId;
     if (remoteUserId == null) {
-      throw const AppException(
-        'Нет интернет-соединения. Проверьте подключение и повторите попытку.',
-      );
+      throw const AppException(noInternetMessage);
     }
 
     final latestLocalMeasurement = await _latestLocalMeasurement(user.id);
@@ -155,9 +149,7 @@ class ProfileRepository implements domain.ProfileRepository {
         : _ProfileBodyValues.fromLocal(latestLocalMeasurement);
 
     if (bodyFatSource == null) {
-      throw const ValidationException(
-        'Для пересчета % жира нет сохраненных параметров тела.',
-      );
+      throw const ValidationException(noBodyValuesForFatRecalculationMessage);
     }
 
     final recalculatedLatestBodyFatPercent =
@@ -203,8 +195,7 @@ class ProfileRepository implements domain.ProfileRepository {
       throw AppException(
         russianErrorMessage(
           e,
-          fallback:
-              'Не удалось сохранить параметры пользователя. Проверьте интернет и повторите попытку.',
+          fallback: profileSaveFailedMessage,
         ),
       );
     }
@@ -253,27 +244,23 @@ class ProfileRepository implements domain.ProfileRepository {
   }) async {
     final user = auth.currentUser;
     if (user?.email == null) {
-      throw const AppException('Пользователь не найден');
+      throw const AppException(userNotFoundMessage);
     }
 
     await auth.waitForRemoteSessionWarmUp();
     if (auth.activeRemoteUserId == null) {
-      throw const AppException(
-        'Нет интернет-соединения. Проверьте подключение и повторите попытку.',
-      );
+      throw const AppException(noInternetMessage);
     }
 
     final oldValue = currentPassword;
     final newValue = newPassword;
 
     if (oldValue.isEmpty || newValue.isEmpty) {
-      throw const ValidationException('Введите старый и новый пароль');
+      throw const ValidationException(passwordFieldsRequiredMessage);
     }
 
     if (newValue.length < 6) {
-      throw const ValidationException(
-        'Новый пароль не соответствует требованиям. Используйте минимум 6 символов.',
-      );
+      throw const ValidationException(newPasswordRequirementsMessage);
     }
 
     try {
@@ -285,14 +272,13 @@ class ProfileRepository implements domain.ProfileRepository {
       throw AppException(
         russianErrorMessage(
           e,
-          fallback: 'Неверный текущий пароль.',
+          fallback: invalidCurrentPasswordMessage,
         ),
       );
     }
 
     if (oldValue == newValue) {
-      throw const ValidationException(
-          'Новый пароль должен отличаться от старого');
+      throw const ValidationException(samePasswordMessage);
     }
 
     try {
@@ -301,7 +287,7 @@ class ProfileRepository implements domain.ProfileRepository {
       throw AppException(
         russianErrorMessage(
           e,
-          fallback: 'Не удалось изменить пароль. Повторите попытку.',
+          fallback: passwordChangeFailedMessage,
         ),
       );
     }
@@ -349,7 +335,7 @@ class ProfileRepository implements domain.ProfileRepository {
       timeout,
       onTimeout: () {
         throw AppException(
-          'Не удалось выполнить $operationName. Проверьте интернет и повторите попытку.',
+          operationFailedMessage(operationName),
         );
       },
     );
@@ -380,7 +366,7 @@ class ProfileRepository implements domain.ProfileRepository {
       throw AppException(
         russianErrorMessage(
           e,
-          fallback: 'Не удалось получить параметры тела для пересчета % жира.',
+          fallback: fetchBodyValuesForFatRecalculationFailedMessage,
         ),
       );
     }
@@ -406,14 +392,12 @@ class ProfileRepository implements domain.ProfileRepository {
       );
 
       if (!bodyFat.isFinite || bodyFat <= 0) {
-        throw const FormatException('Invalid body fat');
+        throw const FormatException(invalidBodyFatTechnicalMessage);
       }
 
       return bodyFat;
     } catch (_) {
-      throw const ValidationException(
-        'Пересчитанный % жира должен быть числом больше 0. Проверьте рост и параметры тела.',
-      );
+      throw const ValidationException(recalculatedBodyFatInvalidMessage);
     }
   }
 

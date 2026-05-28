@@ -2,11 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../entities/local_entities.dart';
+import '../../core/app_errors.dart';
 
 export '../entities/local_entities.dart' show ProgressPhoto;
 
 final photosRepositoryProvider = Provider<PhotosRepository>((ref) {
-  throw UnimplementedError('PhotosRepository должен быть подключен в data-слое');
+  throw UnimplementedError(photosRepositoryNotConnectedMessage);
 });
 
 abstract class PhotosRepository {

@@ -1,8 +1,9 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/app_errors.dart';
 import '../../../../core/design.dart';
 import '../../../../domain/services/nutrition_calculator.dart';
+import '../../../../domain/usecases/diary_norm_frame_usecase.dart';
 import '../../../../domain/repositories/diary_repository.dart';
 import '../../../widgets/app_animations.dart';
 import 'water_card.dart';
@@ -106,7 +107,7 @@ class _NormsCardState extends ConsumerState<_NormsCard> {
       if (!mounted) return;
 
       setState(() {
-        errorText = e.toString();
+        errorText = russianErrorMessage(e);
         initialLoading = false;
       });
     }
@@ -127,7 +128,7 @@ class _NormsCardState extends ConsumerState<_NormsCard> {
       if (!mounted) return;
 
       setState(() {
-        errorText = e.toString();
+        errorText = russianErrorMessage(e);
       });
     }
   }
@@ -142,7 +143,7 @@ class _NormsCardState extends ConsumerState<_NormsCard> {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Text('Ошибка итогов дня: $errorText'),
+          child: Text(errorWithTitle(diaryTotalsLoadErrorTitle, errorText)),
         ),
       );
     }
@@ -317,7 +318,7 @@ class _WaterInitialLoaderState extends ConsumerState<_WaterInitialLoader> {
       if (!mounted) return;
 
       setState(() {
-        errorText = e.toString();
+        errorText = russianErrorMessage(e);
         initialLoading = false;
       });
     }
@@ -333,7 +334,7 @@ class _WaterInitialLoaderState extends ConsumerState<_WaterInitialLoader> {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Text('Ошибка загрузки воды: $errorText'),
+          child: Text(errorWithTitle(waterLoadErrorTitle, errorText)),
         ),
       );
     }
@@ -367,55 +368,32 @@ class _NormFrameStyle {
   final double width;
 }
 
-double _clamp01(double value) => value.clamp(0.0, 1.0).toDouble();
-
-double _max4(double a, double b, double c, double d) {
-  return math.max(math.max(a, b), math.max(c, d));
-}
-
 _NormFrameStyle _normFrameStyle(
   BuildContext context, {
   required DiaryTotals totals,
   required MacroNorms norms,
 }) {
   final colors = Theme.of(context).colorScheme;
+  final frameData = DiaryNormFrameUseCase.calculate(
+    totals: totals,
+    norms: norms,
+  );
 
-  if (norms.calories <= 0) {
+  if (!frameData.hasValidNorms) {
     return _NormFrameStyle(
       color: colors.outlineVariant.withValues(alpha: 0.45),
       width: 1.0,
     );
   }
 
-  final calorieProgress = _clamp01(totals.calories / norms.calories);
-
-  final caloriesOver = math.max(0.0, totals.calories - norms.calories);
-  final proteinsOver = math.max(0.0, totals.proteins - norms.proteins);
-  final fatsOver = math.max(0.0, totals.fats - norms.fats);
-  final carbsOver = math.max(0.0, totals.carbs - norms.carbs);
-
-  final caloriesOverUnits = caloriesOver < 100 ? 0.0 : caloriesOver / 100.0;
-  final proteinsOverUnits = proteinsOver < 50 ? 0.0 : proteinsOver / 50.0;
-  final fatsOverUnits = fatsOver < 50 ? 0.0 : fatsOver / 50.0;
-  final carbsOverUnits = carbsOver < 50 ? 0.0 : carbsOver / 50.0;
-
-  final overUnits = _max4(
-    caloriesOverUnits,
-    proteinsOverUnits,
-    fatsOverUnits,
-    carbsOverUnits,
-  );
-
-  if (overUnits > 0) {
-    final redPower = _clamp01(overUnits / 5.0);
-
+  if (frameData.hasOverage) {
     return _NormFrameStyle(
       color: Color.lerp(
         const Color(0xFFFFE4E4),
         const Color(0xFFEFA0A0),
-        redPower,
+        frameData.redPower,
       )!,
-      width: 1.4 + redPower * 1.8,
+      width: 1.4 + frameData.redPower * 1.8,
     );
   }
 
@@ -423,11 +401,12 @@ _NormFrameStyle _normFrameStyle(
     color: Color.lerp(
       colors.outlineVariant.withValues(alpha: 0.38),
       const Color(0xFFBFE8C8),
-      calorieProgress,
+      frameData.calorieProgress,
     )!,
-    width: 1.0 + calorieProgress * 1.2,
+    width: 1.0 + frameData.calorieProgress * 1.2,
   );
 }
+
 class NormRow extends StatelessWidget {
   const NormRow({
     super.key,

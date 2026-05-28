@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../../core/app_errors.dart';
 import '../../core/enums.dart';
 import '../../core/number_utils.dart';
 
@@ -38,7 +39,7 @@ class NutritionCalculator {
     required double hipsCm,
   }) {
     if (heightCm <= 0 || neckCm <= 0 || waistCm <= 0 || hipsCm <= 0) {
-      throw ArgumentError('Все параметры должны быть больше 0');
+      throw ArgumentError(bodyParametersPositiveMessage);
     }
 
     final heightIn = heightCm / _cmToInch;
@@ -51,7 +52,7 @@ class NutritionCalculator {
     if (sex == Sex.male) {
       final diff = waistIn - neckIn;
       if (diff <= 0) {
-        throw ArgumentError('Для мужчин талия должна быть больше шеи');
+        throw ArgumentError(maleWaistGreaterThanNeckMessage);
       }
 
       rawResult =
@@ -59,9 +60,7 @@ class NutritionCalculator {
     } else {
       final diff = waistIn + hipsIn - neckIn;
       if (diff <= 0) {
-        throw ArgumentError(
-          'Для женщин сумма талии и бедер должна быть больше шеи',
-        );
+        throw ArgumentError(femaleWaistHipsGreaterThanNeckMessage);
       }
 
       rawResult = 163.205 * (log(diff) / ln10) -
@@ -72,7 +71,7 @@ class NutritionCalculator {
     final result = roundTo(rawResult, 2);
 
     if (result <= 0) {
-      throw ArgumentError('% жира должен быть больше 0');
+      throw ArgumentError(bodyFatMustBePositiveMessage);
     }
 
     return result;
@@ -136,9 +135,9 @@ class NutritionCalculator {
         carbShare = 0.45;
     }
 
-    final proteins = roundTo(((calories * proteinShare) / 4),2);
-    final fats = roundTo(((calories * fatShare) / 9),2);
-    final carbs = roundTo(((calories * carbShare) / 4),2);
+    final proteins = roundTo(((calories * proteinShare) / 4), 2);
+    final fats = roundTo(((calories * fatShare) / 9), 2);
+    final carbs = roundTo(((calories * carbShare) / 4), 2);
 
     final waterBase = sex == Sex.male ? 35.0 : 31.0;
     final waterMl = double.parse(
@@ -147,7 +146,7 @@ class NutritionCalculator {
     );
 
     return MacroNorms(
-      calories: roundTo(calories,2),
+      calories: roundTo(calories, 2),
       proteins: proteins,
       fats: fats,
       carbs: carbs,

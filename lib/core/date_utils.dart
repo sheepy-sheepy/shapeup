@@ -1,3 +1,5 @@
+import 'app_errors.dart';
+
 String dayKeyFromDate(DateTime date) {
   return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
@@ -32,7 +34,7 @@ DateTime? tryParseRuDate(String value) {
 DateTime parseRuDate(String value) {
   final parsed = tryParseRuDate(value);
   if (parsed == null) {
-    throw FormatException('Invalid date format', value);
+    throw FormatException(invalidDateFormatTechnicalMessage, value);
   }
   return parsed;
 }

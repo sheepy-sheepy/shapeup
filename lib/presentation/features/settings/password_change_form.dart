@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_ui.dart';
+import '../../../core/app_errors.dart';
 
 import '../../../core/design.dart';
 import '../../../domain/repositories/profile_repository.dart';
@@ -65,15 +67,11 @@ class _PasswordChangeFormState extends ConsumerState<PasswordChangeForm> {
       oldPassword.clear();
       newPassword.clear();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пароль изменен')),
-      );
+      showAppSnackBar(context, passwordChangedMessage);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      showAppSnackBar(context, russianErrorMessage(e));
     } finally {
       if (mounted) {
         setState(() => loading = false);

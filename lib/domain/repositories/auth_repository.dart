@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/enums.dart';
 import '../../core/preferences_service.dart';
+import '../../core/app_errors.dart';
 
 const otpResendCooldownSeconds = 60;
 const _otpCooldownExpiresAtKey = 'otp_cooldown_expires_at_ms';
@@ -139,7 +140,7 @@ final otpCooldownProvider =
 );
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  throw UnimplementedError('AuthRepository должен быть подключен в data-слое');
+  throw UnimplementedError(authRepositoryNotConnectedMessage);
 });
 
 abstract class AuthRepository {

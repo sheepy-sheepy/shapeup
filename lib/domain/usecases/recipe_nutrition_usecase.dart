@@ -1,3 +1,4 @@
+import '../../core/app_errors.dart';
 import '../entities/local_entities.dart';
 import '../entities/recipe_models.dart';
 
@@ -74,7 +75,7 @@ class RecipeNutritionUseCase {
         recipe.cookedWithTareWeightGrams - recipe.tareWeightGrams;
 
     if (cookedWeightGrams <= 0) {
-      throw Exception('У рецепта не указан итоговый вес готового блюда');
+      throw const AppException(recipeCookedWeightMissingMessage);
     }
 
     return RecipeNutritionValues(

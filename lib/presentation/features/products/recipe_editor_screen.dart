@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/app_errors.dart';
 import '../../../core/extensions.dart';
 import '../../../core/app_ui.dart';
 import '../../../domain/repositories/products_repository.dart';
 import '../../../domain/repositories/recipes_repository.dart';
-import '../../../domain/usecases/recipe_nutrition_usecase.dart';
+import '../../../domain/usecases/recipe_editor_usecase.dart';
 import '../../controllers/base_foods_paging_controller.dart';
 import '../../widgets/products_panel.dart';
 import '../../widgets/grams_input_content.dart';
@@ -118,12 +119,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
   }
 
   double? _positiveDoubleFromController(TextEditingController controller) {
-    final value = double.tryParse(
-      controller.text.trim().replaceAll(',', '.'),
-    );
-
-    if (value == null || value <= 0) return null;
-    return value;
+    return RecipeEditorUseCase.positiveNumberFromText(controller.text);
   }
 
   double? get _tareWeightValue {
@@ -135,63 +131,30 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
   }
 
   double? get _cookedWeightValue {
-    final tare = _tareWeightValue;
-    final cookedWithTare = _cookedWithTareWeightValue;
-
-    if (tare == null || cookedWithTare == null) return null;
-
-    final cookedWeight = cookedWithTare - tare;
-    if (cookedWeight <= 0) return null;
-
-    return cookedWeight;
+    return RecipeEditorUseCase.cookedWeight(
+      tareWeightGrams: _tareWeightValue,
+      cookedWithTareWeightGrams: _cookedWithTareWeightValue,
+    );
   }
 
   bool get _hasValidCookedWeight {
     return _cookedWeightValue != null;
   }
 
-  bool get _hasTwoDifferentProducts {
-    final distinct =
-        items.map((item) => '${item.sourceType}:${item.sourceId}').toSet();
-
-    return distinct.length >= 2;
-  }
-
   bool get _canSaveRecipe {
-    return !loading &&
-        name.text.trim().isNotEmpty &&
-        items.length >= 2 &&
-        _hasTwoDifferentProducts &&
-        _hasValidCookedWeight;
-  }
-
-  String? _positiveNumberValidator(String? value) {
-    final parsed = double.tryParse(
-      (value ?? '').trim().replaceAll(',', '.'),
+    return RecipeEditorUseCase.canSaveRecipe(
+      loading: loading,
+      name: name.text,
+      items: items,
+      cookedWeightGrams: _cookedWeightValue,
     );
-
-    if (parsed == null || parsed <= 0) {
-      return 'Введите положительное число';
-    }
-
-    return null;
   }
 
   String? _cookedWithTareValidator(String? value) {
-    final parsed = double.tryParse(
-      (value ?? '').trim().replaceAll(',', '.'),
+    return RecipeEditorUseCase.cookedWithTareValidator(
+      value: value,
+      tareWeightGrams: _tareWeightValue,
     );
-
-    if (parsed == null || parsed <= 0) {
-      return 'Введите положительное число';
-    }
-
-    final tare = _tareWeightValue;
-    if (tare != null && parsed <= tare) {
-      return 'Вес готового блюда с тарой должен быть больше веса тары';
-    }
-
-    return null;
   }
 
   Future<void> pickIngredient() async {
@@ -213,8 +176,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
       context: context,
       builder: (_) {
         bool canAdd() {
-          final grams = _positiveDoubleFromController(gramsController);
-          return grams != null && grams > 0;
+          return _positiveDoubleFromController(gramsController) != null;
         }
 
         return StatefulBuilder(
@@ -286,8 +248,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
       context: context,
       builder: (_) {
         bool canSave() {
-          final grams = _positiveDoubleFromController(controller);
-          return grams != null && grams > 0;
+          return _positiveDoubleFromController(controller) != null;
         }
 
         return StatefulBuilder(
@@ -350,13 +311,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
 
   Future<void> save() async {
     if (!_canSaveRecipe) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Укажите название, минимум 2 разных продукта, вес тары и вес готового блюда с тарой',
-          ),
-        ),
-      );
+      showAppSnackBar(context, recipeFormRequiredMessage);
       return;
     }
 
@@ -365,12 +320,14 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
     final tare = _tareWeightValue;
     final cookedWithTare = _cookedWithTareWeightValue;
 
-    if (tare == null || cookedWithTare == null || cookedWithTare - tare <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Итоговый вес готового блюда должен быть больше 0'),
-        ),
-      );
+    if (tare == null ||
+        cookedWithTare == null ||
+        RecipeEditorUseCase.cookedWeight(
+              tareWeightGrams: tare,
+              cookedWithTareWeightGrams: cookedWithTare,
+            ) ==
+            null) {
+      showAppSnackBar(context, cookedWeightPositiveMessage);
       return;
     }
 
@@ -399,9 +356,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        showAppSnackBar(context, russianErrorMessage(e));
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -411,7 +366,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final cookedWeight = _cookedWeightValue ?? 0;
-    final totals = RecipeNutritionUseCase.totalsForInputs(
+    final totals = RecipeEditorUseCase.totalsForInputs(
       items,
       cookedWeightGrams: cookedWeight,
     );
@@ -423,10 +378,10 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
           ScreenHelpAction(
             title: 'Рецепт',
             message:
-                'Введите название рецепта и добавьте минимум 2 разных продукта. '
-                'Для каждого продукта укажите количество граммов. '
-                'Заполните вес тары и вес готового блюда с тарой, чтобы приложение рассчитало КБЖУ рецепта на 100 г. '
-                'Название рецепта не должно совпадать с уже созданными рецептами. '
+                'Введите название рецепта и добавьте минимум 2 разных продукта.\n\n'
+                'Для каждого продукта укажите количество граммов.\n\n'
+                'Заполните вес тары и вес готового блюда с тарой, чтобы приложение рассчитало КБЖУ рецепта на 100 г.\n\n'
+                'Название рецепта не должно совпадать с уже созданными рецептами.\n\n'
                 'При редактировании можно менять граммы продуктов, удалять продукты и сохранять обновлённый рецепт.',
           ),
         ],
@@ -454,7 +409,7 @@ class _RecipeEditorScreenState extends ConsumerState<RecipeEditorScreen> {
               decoration: const InputDecoration(
                 labelText: 'Вес тары, г',
               ),
-              validator: _positiveNumberValidator,
+              validator: RecipeEditorUseCase.positiveNumberValidator,
             ),
             const SizedBox(height: 6),
             TextFormField(
@@ -673,11 +628,11 @@ class _FoodPickerScreenState extends ConsumerState<_FoodPickerScreen> {
                       children: [
                         if (foodsErrorText != null)
                           ListTile(
-                            title: const Text('Ошибка загрузки базы продуктов'),
+                            title: const Text(baseFoodsLoadErrorTitle),
                             subtitle: Text(foodsErrorText),
                           ),
                         if (foods.isEmpty && !foodsLoading)
-                          const ListTile(title: Text('Ничего не найдено')),
+                          const ListTile(title: Text(nothingFoundMessage)),
                         ...foods.map(
                           (e) => CsvFoodTile(
                             food: e,

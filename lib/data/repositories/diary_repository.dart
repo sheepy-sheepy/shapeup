@@ -7,6 +7,7 @@ import '../../domain/repositories/auth_repository.dart' as auth_domain;
 import '../../domain/repositories/diary_repository.dart' as domain;
 import '../local/app_database.dart';
 import 'dart:math' as math;
+import '../../core/app_errors.dart';
 
 final diaryRepositoryProvider = Provider<domain.DiaryRepository>((ref) {
   return DiaryRepository(
@@ -28,7 +29,7 @@ class DiaryRepository implements domain.DiaryRepository {
   Future<void> ensureMealsForDay(String dayKey) async {
     final user = auth.currentUser;
     if (user == null) {
-      throw Exception('Пользователь не авторизован');
+      throw const AppException(unauthorizedMessage);
     }
 
     for (final mealType in _mealTypes) {
@@ -191,7 +192,7 @@ class DiaryRepository implements domain.DiaryRepository {
   Future<void> updateWater(String dayKey, double waterMl) async {
     final user = auth.currentUser;
     if (user == null) {
-      throw Exception('Пользователь не авторизован');
+      throw const AppException(unauthorizedMessage);
     }
 
     final existing = await (db.select(db.diaryDays)

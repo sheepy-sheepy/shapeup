@@ -276,9 +276,13 @@ class _WaterGrowthPainter extends CustomPainter {
 
     final bottomPath = Path()
       ..moveTo(frame.left + frame.width * 0.18, bottomY + 2)
-      ..cubicTo(frame.left + frame.width * 0.38, bottomY + 11,
-          frame.right - frame.width * 0.38, bottomY + 11,
-          frame.right - frame.width * 0.18, bottomY + 2);
+      ..cubicTo(
+          frame.left + frame.width * 0.38,
+          bottomY + 11,
+          frame.right - frame.width * 0.38,
+          bottomY + 11,
+          frame.right - frame.width * 0.18,
+          bottomY + 2);
 
     canvas.drawPath(leftPath, vinePaint);
     canvas.drawPath(rightPath, vinePaint);
@@ -425,7 +429,8 @@ class _WaterGrowthPainter extends CustomPainter {
         const Color(0xFF8D6E63),
         const Color(0xFF43A047),
         budFreshness,
-      )!.withValues(alpha: 0.88)
+      )!
+          .withValues(alpha: 0.88)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round;
@@ -446,7 +451,8 @@ class _WaterGrowthPainter extends CustomPainter {
     }
 
     final petalPaint = Paint()..color = flowerColor.withValues(alpha: 0.94);
-    final centerPaint = Paint()..color = const Color(0xFFFFD54F).withValues(alpha: 0.92);
+    final centerPaint = Paint()
+      ..color = const Color(0xFFFFD54F).withValues(alpha: 0.92);
     final petalLength = 4.0 + open * 5.0;
     final petalWidth = 2.6 + open * 2.0;
 

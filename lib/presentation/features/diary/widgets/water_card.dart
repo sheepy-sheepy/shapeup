@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/app_errors.dart';
 
 import '../../../../core/app_ui.dart';
 import '../../../../core/design.dart';
 import '../../../../domain/repositories/diary_repository.dart';
+import '../../../../domain/usecases/water_intake_usecase.dart';
 import '../../../widgets/app_animations.dart';
 import 'water_growth_animation.dart';
 
@@ -47,11 +49,9 @@ class _WaterCardState extends ConsumerState<WaterCard> {
   }
 
   double? _waterInputMl() {
-    final value = double.tryParse(
-      widget.waterAmountController.text.trim().replaceAll(',', '.'),
+    return WaterIntakeUseCase.positiveVolumeFromText(
+      widget.waterAmountController.text,
     );
-    if (value == null || value <= 0) return null;
-    return value;
   }
 
   Future<void> _quickAddWater(double ml) async {
@@ -66,13 +66,16 @@ class _WaterCardState extends ConsumerState<WaterCard> {
 
     if (delta == null) {
       if (mounted) {
-        showAppSnackBar(context, 'Введите положительный объем воды в мл');
+        showAppSnackBar(context, waterVolumePositiveMessage);
       }
       return;
     }
 
-    final next = increase ? waterConsumed + delta : waterConsumed - delta;
-    final clamped = next < 0 ? 0.0 : next;
+    final clamped = WaterIntakeUseCase.nextAmount(
+      current: waterConsumed,
+      delta: delta,
+      increase: increase,
+    );
 
     await ref.read(diaryRepositoryProvider).updateWater(
           widget.dayKey,
@@ -165,28 +168,28 @@ class _WaterCardState extends ConsumerState<WaterCard> {
             ),
             const SizedBox(height: AppSpacing.sm),
             Center(
-  child: Wrap(
-    alignment: WrapAlignment.center,
-    spacing: AppSpacing.sm,
-    runSpacing: AppSpacing.xs,
-    children: [
-      ActionChip(
-        label: const Text('+200 мл'),
-        onPressed: () => _quickAddWater(200),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      ActionChip(
-        label: const Text('+250 мл'),
-        onPressed: () => _quickAddWater(250),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      ActionChip(
-        label: const Text('+500 мл'),
-        onPressed: () => _quickAddWater(500),
-      ),
-    ],
-  ),
-),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  ActionChip(
+                    label: const Text('+200 мл'),
+                    onPressed: () => _quickAddWater(200),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  ActionChip(
+                    label: const Text('+250 мл'),
+                    onPressed: () => _quickAddWater(250),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  ActionChip(
+                    label: const Text('+500 мл'),
+                    onPressed: () => _quickAddWater(500),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
